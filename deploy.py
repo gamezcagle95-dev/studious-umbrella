@@ -80,7 +80,6 @@ def compile_files():
     }, allow_paths=os.path.abspath("node_modules"))
 
 
-# pylint: disable=too-many-arguments,too-many-positional-arguments
 def deploy_contract(w3_conn, compiled_sol, file_name, contract_name, account, pkey, args):
     """Signs and transmits raw deployment transactions to the target node."""
     abi = compiled_sol["contracts"][file_name][contract_name]["abi"]
