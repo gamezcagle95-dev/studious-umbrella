@@ -1,0 +1,15 @@
+[MASTER]
+ignore=venv,node_modules
+
+[MESSAGES CONTROL]
+# too-many-arguments and too-many-positional-arguments are disabled for deployment functions
+disable=
+    too-many-arguments,
+    too-many-positional-arguments,
+    import-error
+
+[FORMAT]
+max-line-length=120
+
+[REPORTS]
+fail-under=10.0
