@@ -1,5 +1,5 @@
 # ==============================================================================
-# EPIPHANY WEB3 SETTLEMENT MACHINE - DETERMINISTIC CONTRACT DEPLOYMENT ENGINE
+# EPIPHANY WEB3 SETTLEMENT MACHINE - DUAL-CONTRACT DEPLOYMENT ENGINE
 # Profile Context: Susan D. Cagle <gamezcagle95@gmail.com>
 # ==============================================================================
 import os
@@ -14,82 +14,93 @@ load_dotenv()
 def run_deployment_loop():
     print("⛓️  Initializing state machine compiler pipelines...")
 
-    # 1. Load System Staging Parameters
     rpc_url = os.getenv("RPC_URL", "http://127.0.0.1:8545")
     private_key = os.getenv("PRIVATE_KEY")
     account_address = os.getenv("ACCOUNT_ADDRESS")
 
-    # Graceful fallback simulation if environment variables aren't hot yet
     if not private_key or not account_address:
         print("⚠️  Warning: PRIVATE_KEY or ACCOUNT_ADDRESS not set in environment.")
         print("💡 Simulation Mode: Mocking configuration outputs to public/settlement.json")
-        mock_deployment_output("0x4c0883a69102937d6231471b5dbb6204fe302702fd307ce2304598dcf3e346d1")
+        mock_deployment_output(
+            "0x4c0883a69102937d6231471b5dbb6204fe302702fd307ce2304598dcf3e346d1",
+            "0x71C7656EC7ab88b098defB751B7401B5f6d147a3"
+        )
         return
 
-    # 2. Establish Network Connection
     w3 = Web3(Web3.HTTPProvider(rpc_url))
     if not w3.is_connected():
         print(f"❌ Connection Error: Node target offline at {rpc_url}")
         sys.exit(1)
 
     print(f"✓ Linked to network ledger. Chain ID: {w3.eth.chain_id}")
-
-    # 3. Compile Target Ledger
-    print("🔨 Locking Solidity compiler version to [0.8.26]...")
     install_solc("0.8.26")
 
-    contract_file_path = "src/contracts/ProvenanceLedger.sol"
-    if not os.path.exists(contract_file_path):
-        print(f"❌ Error: Source file missing at {contract_file_path}")
-        sys.exit(1)
+    # Compile files in a single pass
+    compiled_sol = compile_files()
 
-    with open(contract_file_path, "r") as f:
-        source_code = f.read()
+    # 1. Deploy ProvenanceLedger
+    ledger_address = deploy_contract(w3, compiled_sol, "ProvenanceLedger.sol", "ProvenanceLedger", account_address, private_key, [account_address])
+    print(f"✅ LEDGER DEPLOYED: {ledger_address}")
 
-    # Build the standard JSON compilation input matrix
-    compiled_sol = compile_standard({
+    # 2. Deploy ProvenanceRegistry (Passing Ledger Address to Constructor)
+    registry_address = deploy_contract(w3, compiled_sol, "ProvenanceRegistry.sol", "ProvenanceRegistry", account_address, private_key, [ledger_address])
+    print(f"✅ REGISTRY DEPLOYED: {registry_address}")
+
+    mock_deployment_output(ledger_address, registry_address)
+
+def compile_files():
+    with open("src/contracts/ProvenanceLedger.sol", "r") as f:
+        ledger_src = f.read()
+    with open("src/contracts/ProvenanceRegistry.sol", "r") as f:
+        registry_src = f.read()
+
+    return compile_standard({
         "language": "Solidity",
-        "sources": {"ProvenanceLedger.sol": {"content": source_code}},
+        "sources": {
+            "ProvenanceLedger.sol": {"content": ledger_src},
+            "ProvenanceRegistry.sol": {"content": registry_src}
+        },
         "settings": {
             "outputSelection": {"*": {"*": ["abi", "evm.bytecode.object"]}}
         }
     }, allow_paths=os.path.abspath("node_modules"))
 
-    # 4. Generate & Send Transaction Sequence
-    abi = compiled_sol["contracts"]["ProvenanceLedger.sol"]["ProvenanceLedger"]["abi"]
-    bytecode = compiled_sol["contracts"]["ProvenanceLedger.sol"]["ProvenanceLedger"]["evm"]["bytecode"]["object"]
+def deploy_contract(w3, compiled_sol, file_name, contract_name, account, pkey, args):
+    abi = compiled_sol["contracts"][file_name][contract_name]["abi"]
+    bytecode = compiled_sol["contracts"][file_name][contract_name]["evm"]["bytecode"]["object"]
 
-    nonce = w3.eth.get_transaction_count(account_address)
-    ProvenanceLedger = w3.eth.contract(abi=abi, bytecode=bytecode)
+    nonce = w3.eth.get_transaction_count(account)
+    ContractObj = w3.eth.contract(abi=abi, bytecode=bytecode)
 
-    tx = ProvenanceLedger.constructor(account_address).build_transaction({
+    tx = ContractObj.constructor(*args).build_transaction({
         "chainId": w3.eth.chain_id,
         "gasPrice": w3.eth.gas_price,
-        "from": account_address,
+        "from": account,
         "nonce": nonce,
     })
 
-    print("🔑 Signing deployment authorization hash...")
-    signed_tx = w3.eth.account.sign_transaction(tx, private_key=private_key)
+    signed_tx = w3.eth.account.sign_transaction(tx, private_key=pkey)
     tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-
-    print(f"🚀 Transaction pushed to pool. Hash: {tx_hash.hex()}")
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+    return receipt.contractAddress
 
-    print(f"✅ DEPLOYMENT VERIFIED. Address: {receipt.contractAddress}")
-    mock_deployment_output(receipt.contractAddress)
-
-def mock_deployment_output(contract_address):
+def mock_deployment_output(ledger_addr, registry_addr):
     settlement_path = "public/settlement.json"
+    data = {"contracts": {}}
+
     if os.path.exists(settlement_path):
-        with open(settlement_path, "r") as f:
-            data = json.load(f)
+        try:
+            with open(settlement_path, "r") as f:
+                data = json.load(f)
+        except:
+            pass
 
-        data["contracts"]["Intelligence_Ledger"] = contract_address
+    data["contracts"]["Intelligence_Ledger"] = ledger_addr
+    data["contracts"]["Provenance_Registry"] = registry_addr
 
-        with open(settlement_path, "w") as f:
-            json.dump(data, f, indent=2)
-        print(f"✓ Configuration map synchronized in {settlement_path}")
+    with open(settlement_path, "w") as f:
+        json.dump(data, f, indent=2)
+    print(f"✓ Configuration map synchronized in {settlement_path}")
 
 if __name__ == "__main__":
     run_deployment_loop()
