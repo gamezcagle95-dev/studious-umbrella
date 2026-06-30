@@ -13,7 +13,7 @@ import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
  * @dev Core settlement layer for the Epiphany Investigative Protocol.
  * Handles intelligence anchoring, bounty distribution, and incentive alignment.
  */
-contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, EIP712, ReentrancyGuard {
+contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
     using ECDSA for bytes32;
 
     address public seniorInvestigator;
@@ -56,8 +56,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, EIP712, ReentrancyGua
 
     constructor(address initialOwner)
         ERC20("Epiphany Intelligence Token", "EIT")
-        ERC20Permit("Epiphany Intelligence Token")
-        EIP712("Epiphany Ledger", "1")
+        ERC20Permit("Epiphany Ledger")
     {
         seniorInvestigator = initialOwner;
     }
