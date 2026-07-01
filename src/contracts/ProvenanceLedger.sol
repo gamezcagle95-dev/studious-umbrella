@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+
 /**
  * @title ProvenanceLedger
  * @dev Core settlement layer for the Epiphany Investigative Protocol.
@@ -54,7 +55,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
 
     constructor(address initialOwner)
         ERC20("Epiphany Intelligence Token", "EIT")
-        ERC20Permit("Epiphany Ledger")
+        ERC20Permit("Epiphany Intelligence Token")
     {
         seniorInvestigator = initialOwner;
     }
