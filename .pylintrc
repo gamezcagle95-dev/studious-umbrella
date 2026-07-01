@@ -2,7 +2,7 @@
 ignore=venv,node_modules
 
 [MESSAGES CONTROL]
-# too-many-arguments and too-many-positional-arguments are disabled for deployment functions
+# Disabling specific checks to align with project's dual-contract deployment requirements
 disable=
     too-many-arguments,
     too-many-positional-arguments,
