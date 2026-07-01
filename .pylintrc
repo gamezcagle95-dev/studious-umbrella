@@ -353,6 +353,7 @@ indent-string='    '
 # based on PEP 8's guidance that teams may choose line lengths up to 99
 # characters.
 max-line-length=100
+max-line-length=120
 
 # Maximum number of lines in a module.
 max-module-lines=1000
@@ -437,6 +438,9 @@ confidence=HIGH,
 # no Warning level messages displayed, use "--disable=all --enable=classes
 # --disable=W".
 disable=raw-checker-failed,
+        too-many-arguments,
+        too-many-positional-arguments,
+        import-error,
         bad-inline-option,
         locally-disabled,
         file-ignored,

@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # EPIPHANY PROTOCOL BUILD COMPONENT - CONTRACT COMPILER TARGETS
-# System Profile: Susan D. Cagle <gamezcagle95@gmail.com>
+# System Profile:
 # ==============================================================================
 set -e
 
@@ -28,7 +28,7 @@ cat <<EOF > "$ARTIFACT_DIR/build-info.json"
   "timestamp": "$TIMESTAMP",
   "version": "1.0.0",
   "compiler": "solc-0.8.26",
-  "profile": "Susan D. Cagle"
+  "profile": ""
 }
 EOF
 
