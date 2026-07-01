@@ -1,6 +1,6 @@
 // ==============================================================================
 // EPIPHANY PROTOCOL DETERMINISTIC CORE - RAW EVIDENCE FINGERPRINTER
-// Identity Target:
+// Identity Target: Susan D. Cagle <gamezcagle95@gmail.com>
 // ==============================================================================
 const crypto = require('crypto');
 const fs = require('fs');
