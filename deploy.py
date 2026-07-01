@@ -9,9 +9,20 @@ Handles sequential deployment of the ProvenanceLedger and ProvenanceRegistry.
 import os
 import json
 import sys
+from dataclasses import dataclass
+from typing import List, Any
 from web3 import Web3
 from solcx import compile_standard, install_solc
 from dotenv import load_dotenv
+
+@dataclass
+class DeploymentConfig:
+    """Container for deployment parameters to reduce function argument count."""
+    file_name: str
+    contract_name: str
+    account: str
+    pkey: str
+    args: List[Any]
 
 load_dotenv()
 
@@ -46,17 +57,25 @@ def run_deployment_loop():
     compiled_sol = compile_files()
 
     # 1. Deploy ProvenanceLedger
-    ledger_address = deploy_contract(
-        w3, compiled_sol, "ProvenanceLedger.sol", "ProvenanceLedger",
-        account_address, private_key, [account_address]
+    ledger_config = DeploymentConfig(
+        file_name="ProvenanceLedger.sol",
+        contract_name="ProvenanceLedger",
+        account=account_address,
+        pkey=private_key,
+        args=[account_address]
     )
+    ledger_address = deploy_contract(w3, compiled_sol, ledger_config)
     print(f"✅ LEDGER DEPLOYED: {ledger_address}")
 
     # 2. Deploy ProvenanceRegistry (Passing Ledger Address to Constructor)
-    registry_address = deploy_contract(
-        w3, compiled_sol, "ProvenanceRegistry.sol", "ProvenanceRegistry",
-        account_address, private_key, [ledger_address]
+    registry_config = DeploymentConfig(
+        file_name="ProvenanceRegistry.sol",
+        contract_name="ProvenanceRegistry",
+        account=account_address,
+        pkey=private_key,
+        args=[ledger_address]
     )
+    registry_address = deploy_contract(w3, compiled_sol, registry_config)
     print(f"✅ REGISTRY DEPLOYED: {registry_address}")
 
     mock_deployment_output(ledger_address, registry_address)
@@ -81,24 +100,25 @@ def compile_files():
         }
     }, allow_paths=os.path.abspath("node_modules"))
 
-def deploy_contract(w3, compiled_sol, file_name, contract_name, account, pkey, args):
+def deploy_contract(w3, compiled_sol, config: DeploymentConfig):
     """
     Executes a contract deployment transaction.
     """
-    abi = compiled_sol["contracts"][file_name][contract_name]["abi"]
-    bytecode = compiled_sol["contracts"][file_name][contract_name]["evm"]["bytecode"]["object"]
+    abi = compiled_sol["contracts"][config.file_name][config.contract_name]["abi"]
+    evm_data = compiled_sol["contracts"][config.file_name][config.contract_name]["evm"]
+    bytecode = evm_data["bytecode"]["object"]
 
-    nonce = w3.eth.get_transaction_count(account)
+    nonce = w3.eth.get_transaction_count(config.account)
     contract_obj = w3.eth.contract(abi=abi, bytecode=bytecode)
 
-    tx = contract_obj.constructor(*args).build_transaction({
+    tx = contract_obj.constructor(*config.args).build_transaction({
         "chainId": w3.eth.chain_id,
         "gasPrice": w3.eth.gas_price,
-        "from": account,
+        "from": config.account,
         "nonce": nonce,
     })
 
-    signed_tx = w3.eth.account.sign_transaction(tx, private_key=pkey)
+    signed_tx = w3.eth.account.sign_transaction(tx, private_key=config.pkey)
     tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
     return receipt.contractAddress
