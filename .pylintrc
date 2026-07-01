@@ -2,11 +2,14 @@
 ignore=venv,node_modules
 
 [MESSAGES CONTROL]
-# Disabling specific checks to align with project's dual-contract deployment requirements
+# Disable import-error as dependencies are environment-specific
+# Disable numeric R0913/R0917 for deployment function signatures
+# Disable W0012 to prevent failures when rules are not recognized by older Pylint versions
 disable=
-    too-many-arguments,
-    too-many-positional-arguments,
-    import-error
+    E0401,
+    R0913,
+    R0917,
+    W0012
 
 [FORMAT]
 max-line-length=120
