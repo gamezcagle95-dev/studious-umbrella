@@ -1,6 +1,6 @@
 # ==============================================================================
 # EPIPHANY WEB3 SETTLEMENT MACHINE - DUAL-CONTRACT DEPLOYMENT ENGINE
-# Profile Context: Susan D. Cagle <gamezcagle95@gmail.com>
+# Profile Context: Epiphany Protocol
 # ==============================================================================
 """
 Deterministic contract deployment engine for the Epiphany Protocol.

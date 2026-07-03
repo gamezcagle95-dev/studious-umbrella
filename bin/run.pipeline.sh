@@ -1,9 +1,9 @@
 #!/bin/bash
 # ==============================================================================
 # EPIPHANY INVESTIGATIVE PROTOCOL - PIPELINE AUTOMATION RUNNER
-# System Profile: Susan D. Cagle <gamezcagle95@gmail.com>
+# System Profile: Epiphany Protocol
 # Core Workspace: /app
-# Target Remote: git@github.com:gamezcagle95-dev/dataset-tokenization-layer.git
+# Target Remote: git@github.com:epiphany-labs-dev/dataset-tokenization-layer.git
 # ==============================================================================
 set -e
 
@@ -13,7 +13,7 @@ echo "======================================================================"
 echo "      EPIPHANY ORACLE PROTOCOL - INTEGRATED AUTOMATION PIPELINE        "
 echo "======================================================================"
 echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S')"
-echo "Identity:  Susan D. Cagle <gamezcagle95@gmail.com>"
+echo "Identity:  Epiphany Protocol"
 echo "Workspace: /app"
 echo "----------------------------------------------------------------------"
 
