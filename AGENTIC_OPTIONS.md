@@ -1,8 +1,8 @@
-# Automated Agentic Options for Smart Contract Management
+# Automated Agentic Options for Epiphany Protocol Smart Contract Management
 
 This document outlines the architectural taxonomy, hybrid infrastructure, and autonomous workflows
-designed for building an AI-driven smart contract management agent, specifically optimized for
-environments like the Remix IDE.
+designed for building an AI-driven management agent for the **Epiphany Protocol** (specifically
+targeting `ProvenanceLedger` and `ProvenanceRegistry`), optimized for the Remix IDE.
 
 ## 1. Architectural Taxonomy of Smart Contract Agents
 
@@ -22,12 +22,14 @@ Manages state, memory, and multi-agent routing.
 
 ### B. IDE Execution Layer (The "Hands" - Internal)
 Directly interacts with the developer environment via the `@remix-project/plugin` API.
-*   **`fileManager`:** Query workspace state, read active files, and apply refactored patches.
+*   **`fileManager`:** Manage `src/contracts/` files, allowing the agent to refactor
+    `ProvenanceLedger` or `ProvenanceRegistry` based on audit findings.
 *   **`solidity`:** Trigger compilations and subscribe to `compilationFinished` events to capture
-    ASTs and error details.
-*   **`udapp` (Universal dApp):** Simulate deployments and execute contract transactions in local
-    EVM runtimes.
-*   **`terminal`:** Output real-time logs and system status to the developer console.
+    ASTs and error details for the Provenance suite.
+*   **`udapp` (Universal dApp):** Simulate the dual-contract deployment sequence (Ledger then
+    Registry) as defined in `deploy.py`.
+*   **`terminal`:** Output logs from the `bin/run.pipeline.sh` execution directly into the Remix
+    console.
 
 ### C. External Execution Layer (The "Hands" - External)
 Handles off-chain compute, monitoring, and production-grade management.
@@ -77,8 +79,10 @@ Integrating with non-blockchain productivity tools ensures project continuity:
 
 ## 5. Implementation Summary: Remix AI Smart Contract Copilot
 
-The existing prototype in this workspace implements the core of this architecture:
-*   **Workspace:** Interactive Solidity editor with Cancun EVM simulation.
+The existing prototype in this workspace implements the core of this architecture for the
+Epiphany Protocol:
+*   **Workspace:** Interactive Solidity editor with Cancun EVM simulation, pre-loaded with
+    Provenance contract templates.
 *   **Auto-Debugger:** Monitors compiler output; detects syntax errors and repairs code
     automatically via an AI-driven loop.
 *   **Integrations:**
