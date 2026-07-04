@@ -32,6 +32,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
     struct IntelligenceReport {
         uint128 identifiedLaunderedValue;
         address primaryInvestigator;
+        string ipfsCid;
         bool isVerified;
         bool feeClaimed;
     }
@@ -64,12 +65,17 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
     /**
      * @dev Step 1: Anchor Forensic Findings onto the state machine.
      */
-    function anchorIntelligenceReport(bytes32 reportId, uint128 launderedValue) external whenNotPaused {
+    function anchorIntelligenceReport(
+        bytes32 reportId,
+        uint128 launderedValue,
+        string calldata ipfsCid
+    ) external whenNotPaused {
         if (intelligenceLedger[reportId].primaryInvestigator != address(0)) revert ReportAlreadyAnchored();
 
         intelligenceLedger[reportId] = IntelligenceReport({
             identifiedLaunderedValue: launderedValue,
             primaryInvestigator: msg.sender,
+            ipfsCid: ipfsCid,
             isVerified: false,
             feeClaimed: false
         });

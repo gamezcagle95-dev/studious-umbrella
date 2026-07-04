@@ -2,26 +2,33 @@
 pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
  * @title ProvenanceRegistry
  * @dev Mints unique Data NFTs representing verified intellectual forensic assets.
  * Integrates directly with the core Epiphany Investigative Protocol settlement layer.
  */
-contract ProvenanceRegistry is ERC721URIStorage {
+contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
     uint256 public tokenCount;
     address public immutable ledgerAddress;
 
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+
     // Custom security errors
-    error OnlyLedgerAllowed();
     error InvalidAddress();
 
     // Verification logging
     event DataNFTMinted(uint256 indexed tokenId, string ipfsCid, address indexed creator);
 
-    modifier onlyLedger() {
-        if (msg.sender != ledgerAddress) revert OnlyLedgerAllowed();
-        _;
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(ERC721URIStorage, AccessControl)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
     }
 
     /**
@@ -31,6 +38,9 @@ contract ProvenanceRegistry is ERC721URIStorage {
     constructor(address _ledgerAddress) ERC721("Epiphany Data Asset", "EDA") {
         if (_ledgerAddress == address(0)) revert InvalidAddress();
         ledgerAddress = _ledgerAddress;
+
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MINTER_ROLE, _ledgerAddress);
     }
 
     /**
@@ -42,7 +52,7 @@ contract ProvenanceRegistry is ERC721URIStorage {
      */
     function mintDataNFT(address recipient, string calldata ipfsCid)
         external
-        onlyLedger
+        onlyRole(MINTER_ROLE)
         returns (uint256)
     {
         if (recipient == address(0)) revert InvalidAddress();
