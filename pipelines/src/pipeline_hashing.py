@@ -7,6 +7,7 @@ import hashlib
 import json
 import datetime
 import argparse
+import tempfile
 
 def generate_proof_packet(file_path, evaluator):
     """
@@ -44,11 +45,41 @@ def generate_proof_packet(file_path, evaluator):
     print(f"Target: {file_path}")
     print(f"SHA256: {sha256_hash}")
     print(f"Output: {output_path}\n")
+    return sha256_hash
+
+def run_test_suite():
+    """
+    Executes a self-test of the hashing logic using a temporary file.
+    """
+    print("🧪 Running Pipeline Hashing Self-Test...")
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp:
+        tmp.write("Test content for Epiphany hashing")
+        tmp_path = tmp.name
+
+    try:
+        expected_hash = hashlib.sha256("Test content for Epiphany hashing".encode()).hexdigest()
+        actual_hash = generate_proof_packet(tmp_path, "Test-Evaluator")
+
+        if expected_hash == actual_hash:
+            print("✨ Hashing Verification Passed.")
+        else:
+            print("❌ Hashing Verification Failed.")
+            sys.exit(1)
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Epiphany Pipeline Hashing Tool")
-    parser.add_argument("file", help="Path to the file to hash")
+    parser.add_argument("file", nargs="?", help="Path to the file to hash")
     parser.add_argument("--evaluator", default="LexTrinity-Alpha", help="Evaluator identity")
+    parser.add_argument("--test", action="store_true", help="Run hashing logic self-test")
 
     args = parser.parse_args()
-    generate_proof_packet(args.file, args.evaluator)
+
+    if args.test:
+        run_test_suite()
+    elif args.file:
+        generate_proof_packet(args.file, args.evaluator)
+    else:
+        parser.print_help()
