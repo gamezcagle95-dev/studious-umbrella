@@ -6,109 +6,47 @@ Deploys mock accounts, appraises a real sample trajectory, hashes it,
 generates an EIP-712 signature, and simulates contract state transition.
 """
 
-import sys
 import hashlib
 from eth_account import Account
+from eth_account.messages import encode_typed_data as encode_structured_data
 from web3 import Web3
-from appraisal_engine import calculate_appraisal, usd_to_eit_base_units, sign_appraisal_eip712
+from appraisal_engine import (
+    calculate_appraisal,
+    usd_to_eit_base_units,
+    sign_appraisal_eip712,
+    get_appraisal_payload,
+    AppraisalSigningParams
+)
+
+SAMPLE_TRAJECTORY = """
+// Step 1: Initialize ZK Proof Verifier
+let vk = VerificationKey::from_bytes(VK_BYTES);
+let proof = Proof::from_bytes(PROOF_BYTES);
+
+// Step 2: Validate transition invariants
+assert!(vk.verify(&proof, &public_inputs));
+// State machine validated successfully.
+"""
 
 
-def run_integration_test() -> None:
-    """Deploys local test accounts, appraises trajectory, and verifies signatures."""
-    print("[Wurk] Initializing local protocol integration check...")
-
-    # 1. Initialize local test accounts (simulate EVM environments)
+def get_mock_accounts():
+    """Generates deterministic mock accounts for testing."""
     appraiser_key = "0x" + "2" * 64
     creator_key = "0x" + "3" * 64
 
+    # Pylint E1120 false positive on Account.from_key
+    # pylint: disable=no-value-for-parameter
     appraiser = Account.from_key(appraiser_key)
     creator = Account.from_key(creator_key)
+    return appraiser, appraiser_key, creator
 
-    print(f"[Wurk] Appraiser Address: {appraiser.address}")
-    print(f"[Wurk] Data Creator Address: {creator.address}")
 
-    # Mock contract addresses
-    mock_registry_address = Web3.to_checksum_address("0x" + "a" * 40)
+def perform_local_verification(params, signature, appraiser_address):
+    """Verifies the EIP-712 signature locally using eth-account."""
+    eip712_payload = get_appraisal_payload(params)
 
-    # 2. Ingest real sample trajectory data
-    sample_trajectory = """
-    // Step 1: Initialize ZK Proof Verifier
-    let vk = VerificationKey::from_bytes(VK_BYTES);
-    let proof = Proof::from_bytes(PROOF_BYTES);
-
-    // Step 2: Validate transition invariants
-    assert!(vk.verify(&proof, &public_inputs));
-    // State machine validated successfully.
-    """
-
-    # Calculate SHA-256 asset hash
-    asset_hash = "0x" + hashlib.sha256(sample_trajectory.encode('utf-8')).hexdigest()
-    ipfs_cid = "QmXoypizjW3WknFixtasW3ofZJ6fK75K75K75K75K75K7"
-
-    print(f"[Wurk] Generated Asset Hash: {asset_hash}")
-
-    # 3. Appraisal Valuation Calculation (B * I * S * D)
-    base_cost = 0.08      # $0.08
-    demand_mult = 5.0     # High-level debugging demand
-
-    final_price_usd = calculate_appraisal(sample_trajectory, base_cost, demand_mult)
-    price_in_eit = usd_to_eit_base_units(final_price_usd)
-    print(f"[Wurk] Appraised Asset Price: {final_price_usd:.2f} USD ({price_in_eit} EIT units)")
-
-    # 4. Generate EIP-712 Signature
-    nonce = 42
-    expiry = 9999999999  # Far future timestamp
-
-    print("[Wurk] Signing appraisal structured data via EIP-712...")
-    signature = sign_appraisal_eip712(
-        asset_hash_hex=asset_hash,
-        price_eit_base=price_in_eit,
-        ipfs_cid=ipfs_cid,
-        nonce=nonce,
-        expiry=expiry,
-        creator_address=creator.address,
-        private_key=appraiser_key,
-        contract_address=mock_registry_address,
-        chain_id=1337
-    )
-    print(f"[Wurk] Cryptographic Proof Generated: {signature[:40]}...")
-
-    # 5. Local Cryptographic Assertions (EIP-712)
-    eip712_payload = {
-        "types": {
-            "EIP712Domain": [
-                {"name": "name", "type": "string"},
-                {"name": "version", "type": "string"},
-                {"name": "chainId", "type": "uint256"},
-                {"name": "verifyingContract", "type": "address"}
-            ],
-            "AssetAppraisal": [
-                {"name": "assetHash", "type": "bytes32"},
-                {"name": "price", "type": "uint256"},
-                {"name": "ipfsCID", "type": "string"},
-                {"name": "nonce", "type": "uint256"},
-                {"name": "expiry", "type": "uint256"},
-                {"name": "creator", "type": "address"}
-            ]
-        },
-        "primaryType": "AssetAppraisal",
-        "domain": {
-            "name": "DataAssetRegistry",
-            "version": "1",
-            "chainId": 1337,
-            "verifyingContract": mock_registry_address
-        },
-        "message": {
-            "assetHash": bytes.fromhex(asset_hash.replace("0x", "")),
-            "price": price_in_eit,
-            "ipfsCID": ipfs_cid,
-            "nonce": nonce,
-            "expiry": expiry,
-            "creator": creator.address
-        }
-    }
-
-    from eth_account.messages import encode_typed_data as encode_structured_data
+    # Pylint E1120 false positive on Account.recover_message
+    # pylint: disable=no-value-for-parameter
     recovered_address = Account.recover_message(
         encode_structured_data(full_message=eip712_payload),
         signature=signature
@@ -116,8 +54,45 @@ def run_integration_test() -> None:
 
     print(f"[Wurk] Signature verification recovered address: {recovered_address}")
 
-    assert recovered_address.lower() == appraiser.address.lower(), "Verification failed: signature mismatch!"
+    assert recovered_address.lower() == appraiser_address.lower(), "Verification failed!"
     print("[Wurk] SUCCESS: Cryptographic EIP-712 signature verification passes locally.")
+
+
+def run_integration_test() -> None:
+    """Deploys local test accounts, appraises trajectory, and verifies signatures."""
+    print("[Wurk] Initializing local protocol integration check...")
+
+    appraiser, appraiser_key, creator = get_mock_accounts()
+    print(f"[Wurk] Appraiser Address: {appraiser.address}")
+    print(f"[Wurk] Data Creator Address: {creator.address}")
+
+    mock_registry_address = Web3.to_checksum_address("0x" + "a" * 40)
+    asset_hash = "0x" + hashlib.sha256(SAMPLE_TRAJECTORY.encode('utf-8')).hexdigest()
+    ipfs_cid = "QmXoypizjW3WknFixtasW3ofZJ6fK75K75K75K75K7"
+
+    print(f"[Wurk] Generated Asset Hash: {asset_hash}")
+
+    final_price_usd = calculate_appraisal(SAMPLE_TRAJECTORY, 0.08, 5.0)
+    price_in_eit = usd_to_eit_base_units(final_price_usd)
+    print(f"[Wurk] Appraised Asset Price: {final_price_usd:.2f} USD ({price_in_eit} EIT units)")
+
+    params = AppraisalSigningParams(
+        asset_hash_hex=asset_hash,
+        price_eit_base=price_in_eit,
+        ipfs_cid=ipfs_cid,
+        nonce=42,
+        expiry=9999999999,
+        creator_address=creator.address,
+        private_key=appraiser_key,
+        contract_address=mock_registry_address,
+        chain_id=1337
+    )
+
+    print("[Wurk] Signing appraisal structured data via EIP-712...")
+    signature = sign_appraisal_eip712(params)
+    print(f"[Wurk] Cryptographic Proof Generated: {signature[:40]}...")
+
+    perform_local_verification(params, signature, appraiser.address)
     print("[Wurk] On-chain contracts will successfully parse this message.")
 
 
