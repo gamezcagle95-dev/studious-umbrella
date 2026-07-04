@@ -20,7 +20,7 @@ contract ProvenanceRegistry is ERC721URIStorage, AccessControl, ReentrancyGuard 
     error InvalidAddress();
 
     // Verification logging
-    event DataNFTMinted(uint256 indexed tokenId, string ipfsCid, address indexed recipient);
+    event DataNFTMinted(uint256 indexed tokenId, string ipfsCID, address indexed creator);
 
     /**
      * @dev Overrides supportsInterface to resolve conflict between ERC721 and AccessControl.
@@ -52,10 +52,10 @@ contract ProvenanceRegistry is ERC721URIStorage, AccessControl, ReentrancyGuard 
      * @dev Mints a secure token pointer linking directly to a verified off-chain dataset.
      * Can only be called by addresses with MINTER_ROLE.
      * @param recipient The destination wallet address receiving data token ownership rights.
-     * @param ipfsCid The immutable IPFS Content Identifier hash pointing to the raw encrypted data file.
+     * @param ipfsCID The immutable IPFS Content Identifier hash pointing to the raw encrypted data file.
      * @return The unique uint256 ID of the newly minted cryptographic data token.
      */
-    function mintDataNFT(address recipient, string calldata ipfsCid)
+    function mintDataNFT(address recipient, string calldata ipfsCID)
         external
         onlyRole(MINTER_ROLE)
         nonReentrant
@@ -67,9 +67,9 @@ contract ProvenanceRegistry is ERC721URIStorage, AccessControl, ReentrancyGuard 
         uint256 newTokenId = tokenCount;
 
         _safeMint(recipient, newTokenId);
-        _setTokenURI(newTokenId, ipfsCid);
+        _setTokenURI(newTokenId, ipfsCID);
 
-        emit DataNFTMinted(newTokenId, ipfsCid, recipient);
+        emit DataNFTMinted(newTokenId, ipfsCID, recipient);
         return newTokenId;
     }
 }

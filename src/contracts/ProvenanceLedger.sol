@@ -32,7 +32,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
     struct IntelligenceReport {
         uint128 identifiedLaunderedValue;
         address primaryInvestigator;
-        string ipfsCid;
+        string ipfsCID;
         bool isVerified;
         bool feeClaimed;
     }
@@ -50,7 +50,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
 
     mapping(uint256 => Bounty) public bounties;
 
-    event ProofAnchored(bytes32 indexed reportId, uint256 value, address indexed investigator, string ipfsCid);
+    event ProofAnchored(bytes32 indexed reportId, uint256 value, address indexed investigator);
     event IntelligenceVerified(bytes32 indexed reportId, address indexed auditor);
     event RewardDistributed(address indexed investigator, uint256 amount);
     event BountyTriggered(uint256 indexed bountyId, address indexed solver);
@@ -66,24 +66,24 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
      * @dev Step 1: Anchor Forensic Findings onto the state machine.
      * @param reportId The unique identifier of the report.
      * @param launderedValue The value identified as laundered.
-     * @param ipfsCid The IPFS CID of the forensic metadata.
+     * @param ipfsCID The IPFS CID of the forensic metadata.
      */
     function anchorIntelligenceReport(
         bytes32 reportId,
         uint128 launderedValue,
-        string calldata ipfsCid
+        string calldata ipfsCID
     ) external whenNotPaused {
         if (intelligenceLedger[reportId].primaryInvestigator != address(0)) revert ReportAlreadyAnchored();
 
         intelligenceLedger[reportId] = IntelligenceReport({
             identifiedLaunderedValue: launderedValue,
             primaryInvestigator: msg.sender,
-            ipfsCid: ipfsCid,
+            ipfsCID: ipfsCID,
             isVerified: false,
             feeClaimed: false
         });
 
-        emit ProofAnchored(reportId, launderedValue, msg.sender, ipfsCid);
+        emit ProofAnchored(reportId, launderedValue, msg.sender);
     }
 
     /**
