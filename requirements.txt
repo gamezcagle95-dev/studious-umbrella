@@ -2,3 +2,6 @@ web3
 py-solc-x
 python-dotenv
 pylint
+eth-account
+requests
+pandas
