@@ -1,11 +1,15 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # setup.sh - Epiphany Automated Environment Initialization
 
-# Exit immediately if a command exits with a non-zero status
-set -e
+# Exit immediately if a command exits with a non-zero status,
+# treat unset variables as an error, and fail on pipe errors.
+set -euo pipefail
 
-echo "[Wurk] Initializing Decentralized Command Center in /app..."
-cd /app || exit 1
+# Get the absolute path of the repository root
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "${REPO_ROOT}"
+
+echo "[Wurk] Initializing Decentralized Command Center in ${REPO_ROOT}..."
 
 # 1. Configure Git Identity
 echo "[Wurk] Setting cryptographic commit identity..."
@@ -22,12 +26,12 @@ CURRENT_ORIGIN=$(git config --get remote.origin.url)
 git config --local --unset-all remote.origin.pushurl || true
 
 # Set the primary push to the existing GitHub origin
-git remote set-url --push origin "$CURRENT_ORIGIN"
+git remote set-url --push origin "${CURRENT_ORIGIN}"
 
 # Format and append the secondary push target for GitLab private CI testing
 # (Replacing 'github.com' with 'gitlab.com' for the mirror)
 GITLAB_MIRROR="${CURRENT_ORIGIN/github.com/gitlab.com}"
-git remote set-url --add --push origin "$GITLAB_MIRROR"
+git remote set-url --add --push origin "${GITLAB_MIRROR}"
 
 # 3. Environment Isolation & Dependencies
 echo "[Wurk] Activating virtual environment for dependency isolation..."
@@ -42,9 +46,9 @@ else
 fi
 
 echo "[Wurk] Installing Python dependencies from requirements.txt..."
-pip install --upgrade pip
+python3 -m pip install --upgrade pip
 if [ -f "requirements.txt" ]; then
-    pip install -r requirements.txt
+    python3 -m pip install -r requirements.txt
 else
     echo "[Wurk] Error: requirements.txt not found."
     exit 1
