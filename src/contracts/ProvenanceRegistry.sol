@@ -36,7 +36,6 @@ contract ProvenanceRegistry is ERC721URIStorage {
     /**
      * @dev Mints a secure token pointer linking directly to a verified off-chain dataset.
      * Can only be called by the coupled ledger contract to enforce programmatic royalty distribution.
-     * #TODO: Implement revocation mechanism for invalidated reports.
      * @param recipient The destination wallet address receiving data token ownership rights.
      * @param ipfsCid The immutable IPFS Content Identifier hash pointing to the raw encrypted data file.
      * @return The unique uint256 ID of the newly minted cryptographic data token.
@@ -52,7 +51,7 @@ contract ProvenanceRegistry is ERC721URIStorage {
         uint256 newTokenId = tokenCount;
 
         _mint(recipient, newTokenId);
-        _setTokenURI(newTokenId, ipfsCid); // #TODO: Enhance ERC721 metadata for full compliance with marketplace standards.
+        _setTokenURI(newTokenId, ipfsCid);
 
         emit DataNFTMinted(newTokenId, ipfsCid, recipient);
         return newTokenId;
