@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @dev Interface to trigger our secure cryptographic anchor.
@@ -18,7 +19,7 @@ interface IProvenanceRegistry {
  * @dev Manages the purchasing, unlocking, and anchoring of high-density training data.
  * Settles payments in native EIT tokens and verifies EIP-712 structured appraisals.
  */
-contract DataAssetRegistry is AccessControl, EIP712 {
+contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard {
     using ECDSA for bytes32;
 
     // Roles (Aligned with existing codebase configurations)
@@ -27,7 +28,7 @@ contract DataAssetRegistry is AccessControl, EIP712 {
 
     // EIP-712 Struct Type Hash
     bytes32 public constant ASSET_APPRAISAL_TYPEHASH = keccak256(
-        "AssetAppraisal(bytes32 assetHash,uint256 price,string ipfsCID,uint256 nonce,uint256 expiry,address creator)"
+        "AssetAppraisal(bytes32 assetHash,uint256 price,string ipfsCid,uint256 nonce,uint256 expiry,address creator)"
     );
 
     // External dependencies
@@ -38,7 +39,7 @@ contract DataAssetRegistry is AccessControl, EIP712 {
     struct AssetDetails {
         bytes32 assetHash;
         uint256 price;
-        string ipfsCID;
+        string ipfsCid;
         address creator;
         bool registered;
     }
@@ -52,26 +53,32 @@ contract DataAssetRegistry is AccessControl, EIP712 {
     event AssetAppraisalRegistered(
         bytes32 indexed assetHash,
         uint256 price,
-        string ipfsCID,
+        string ipfsCid,
         address indexed creator
     );
     event AssetUnlocked(
         bytes32 indexed assetHash,
         address indexed buyer,
         uint256 pricePaid,
-        string ipfsCID
+        string ipfsCid
     );
 
     // EIP-712 Mirror Struct
     struct AssetAppraisal {
         bytes32 assetHash;
         uint256 price;
-        string ipfsCID;
+        string ipfsCid;
         uint256 nonce;
         uint256 expiry;
         address creator;
     }
 
+    /**
+     * @dev Initializes the DataAssetRegistry with necessary dependencies.
+     * @param _paymentToken The ERC20 token used for payments.
+     * @param _provenanceRegistry The registry for minting Data NFTs.
+     * @param _seniorInvestigator The address granted administrative roles.
+     */
     constructor(
         address _paymentToken,
         address _provenanceRegistry,
@@ -91,11 +98,16 @@ contract DataAssetRegistry is AccessControl, EIP712 {
 
     /**
      * @dev Allows an authorized Senior Investigator to manage approved appraisers.
+     * @param appraiser The address to authorize.
      */
     function authorizeAppraiser(address appraiser) external onlyRole(SENIOR_INVESTIGATOR_ROLE) {
         _grantRole(APPRAISER_ROLE, appraiser);
     }
 
+    /**
+     * @dev Allows an authorized Senior Investigator to revoke approved appraisers.
+     * @param appraiser The address to revoke.
+     */
     function revokeAppraiser(address appraiser) external onlyRole(SENIOR_INVESTIGATOR_ROLE) {
         _revokeRole(APPRAISER_ROLE, appraiser);
     }
@@ -103,25 +115,27 @@ contract DataAssetRegistry is AccessControl, EIP712 {
     /**
      * @dev Purchases training access to an appraised data asset.
      * Verifies EIP-712 appraisal metrics, transfers EIT tokens, and anchors the hash.
+     * @param appraisal The appraisal details including asset hash, price, and creator.
+     * @param signature The appraiser's signature verifying the appraisal.
      */
     function purchaseAsset(
         AssetAppraisal calldata appraisal,
         bytes calldata signature
-    ) external {
+    ) external nonReentrant {
         // 1. Invariant & Replay Protection Checks
         require(block.timestamp <= appraisal.expiry, "Appraisal signature has expired");
+        require(appraisal.creator != address(0), "Invalid creator address");
 
         bytes32 nonceKey = keccak256(abi.encodePacked(appraisal.creator, appraisal.nonce));
         require(!usedNonces[nonceKey], "Appraisal nonce has already been consumed");
         usedNonces[nonceKey] = true;
 
         // 2. Cryptographic Verification (EIP-712)
-        // Note: For dynamically sized string (ipfsCID), we hash it on-chain per EIP-712 standard
         bytes32 structHash = keccak256(abi.encode(
             ASSET_APPRAISAL_TYPEHASH,
             appraisal.assetHash,
             appraisal.price,
-            keccak256(bytes(appraisal.ipfsCID)),
+            keccak256(bytes(appraisal.ipfsCid)),
             appraisal.nonce,
             appraisal.expiry,
             appraisal.creator
@@ -129,6 +143,7 @@ contract DataAssetRegistry is AccessControl, EIP712 {
 
         bytes32 digest = _hashTypedDataV4(structHash);
         address recoveredSigner = digest.recover(signature);
+        require(recoveredSigner != address(0), "Invalid signature: recovery failed");
         require(hasRole(APPRAISER_ROLE, recoveredSigner), "Invalid signature: Appraiser not authorized");
 
         // 3. Register Asset (Run initial anchoring if first-time purchase)
@@ -136,37 +151,37 @@ contract DataAssetRegistry is AccessControl, EIP712 {
         if (!asset.registered) {
             asset.assetHash = appraisal.assetHash;
             asset.price = appraisal.price;
-            asset.ipfsCID = appraisal.ipfsCID;
+            asset.ipfsCid = appraisal.ipfsCid;
             asset.creator = appraisal.creator;
             asset.registered = true;
-
-            // Trigger the minting of the Data NFT license directly to the buyer
-            provenanceRegistry.mintDataNFT(msg.sender, appraisal.ipfsCID);
 
             emit AssetAppraisalRegistered(
                 appraisal.assetHash,
                 appraisal.price,
-                appraisal.ipfsCID,
+                appraisal.ipfsCid,
                 appraisal.creator
             );
         } else {
             // Confirm the pricing parameters have not been altered
-            require(asset.price == appraisal.price, "Price mismatch: Asset already registered with a different rate");
+            require(asset.price == appraisal.price, "Price mismatch");
         }
 
-        // 4. Token Settlement
+        // 4. Grant API/Query Access to Buyer (Internal state update before external calls)
+        accessGrants[msg.sender][appraisal.assetHash] = true;
+
+        // 5. External Interactions
+        // Trigger the minting of the Data NFT license directly to the buyer
+        provenanceRegistry.mintDataNFT(msg.sender, appraisal.ipfsCid);
+
         // Transfers EIT tokens from the buyer to the verified creator
         bool success = paymentToken.transferFrom(msg.sender, appraisal.creator, appraisal.price);
         require(success, "EIT token settlement transfer failed");
-
-        // 5. Grant API/Query Access to Buyer
-        accessGrants[msg.sender][appraisal.assetHash] = true;
 
         emit AssetUnlocked(
             appraisal.assetHash,
             msg.sender,
             appraisal.price,
-            appraisal.ipfsCID
+            appraisal.ipfsCid
         );
     }
 }
