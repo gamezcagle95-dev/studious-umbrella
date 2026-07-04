@@ -33,6 +33,7 @@ jobs:
     # 4. Enforce Pylint 10/10 standards
     - name: Run Pylint Checks
       run: |
+        export PYTHONPATH=$PYTHONPATH:.
         pylint scripts/appraisal_engine.py scripts/verify_integration.py pipelines/src/pipeline_hashing.py
 
     # 5. Run cryptographic signature and logic verification
