@@ -103,7 +103,7 @@ def link_ledger_to_registry(w3, compiled_sol, ledger_config: DeploymentConfig,
     signed_tx = w3.eth.account.sign_transaction(tx, private_key=ledger_config.pkey)
     tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
     w3.eth.wait_for_transaction_receipt(tx_hash)
-    print(f"✓ Registry link established on-chain.")
+    print("✓ Registry link established on-chain.")
 
 def compile_files():
     """
