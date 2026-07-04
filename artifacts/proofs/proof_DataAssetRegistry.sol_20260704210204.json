@@ -1,8 +1,0 @@
-{
-  "version": "1.0.0",
-  "target": "DataAssetRegistry.sol",
-  "sha256": "a6a01fe1b0d7bb8a85501db63d7ec2eef7dacf588f74d205ba427c4210ecb6a1",
-  "timestamp": "2026-07-04T21:02:04.873074Z",
-  "evaluator": "LexTrinity-Alpha",
-  "status": "STATICALLY_VERIFIED"
-}
