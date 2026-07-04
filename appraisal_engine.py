@@ -4,6 +4,8 @@ EPIPHANY APPRAISAL ENGINE - DATA ASSET VALUATION & SIGNING
 import os
 import json
 import time
+import math
+from collections import Counter
 from dataclasses import dataclass
 from eth_account import Account
 from eth_account.messages import encode_typed_data
@@ -16,6 +18,9 @@ load_dotenv()
 # So 1 USD = 10 EIT tokens
 USD_TO_EIT_RATE = 10
 EIT_DECIMALS = 18
+
+# Security Thresholds
+MAX_ENTROPY_THRESHOLD = 5.0  # Threshold for noise filtering (bits per character)
 
 @dataclass
 class AppraisalMetrics:
@@ -45,10 +50,28 @@ class AppraisalEngine:
         self.chain_id = chain_id
         self.contract_address = contract_address
 
-    def calculate_valuation(self, metrics: AppraisalMetrics) -> float:
+    @staticmethod
+    def calculate_entropy(data: str) -> float:
+        """
+        Calculates Shannon entropy of the input string to detect high-entropy noise.
+        """
+        if not data:
+            return 0.0
+        probabilities = [count / len(data) for count in Counter(data).values()]
+        return -sum(p * math.log2(p) for p in probabilities)
+
+    def calculate_valuation(self, metrics: AppraisalMetrics, raw_data: str) -> float:
         """
         Calculates the final USD asset value using the formula: B * I * S * D.
+        Filters out high-entropy noise before calculation.
         """
+        entropy = self.calculate_entropy(raw_data)
+
+        # Guardrail: If entropy exceeds threshold, we treat it as noise and nullify value
+        if entropy > MAX_ENTROPY_THRESHOLD:
+            print(f"⚠️ Warning: High-entropy noise detected ({entropy:.2f}). Rejecting appraisal.")
+            return 0.0
+
         return (
             metrics.base_cost *
             metrics.information_density *
@@ -115,36 +138,37 @@ class AppraisalEngine:
 
 def run_engine_example():
     """
-    Demonstrates the full appraisal workflow.
+    Demonstrates the full appraisal workflow with entropy guardrails.
     """
-    print("🚀 Initializing Epiphany Appraisal Engine...")
+    print("🚀 Initializing Epiphany Appraisal Engine with Guardrails...")
 
-    # Configuration (use environment or defaults for testing)
+    # Configuration
     p_key = os.getenv("APPRAISER_PRIVATE_KEY", "0x" + "9" * 64)
     c_id = int(os.getenv("CHAIN_ID", "1337"))
-    c_addr = Web3.to_checksum_address(os.getenv("DATA_ASSET_REGISTRY_ADDRESS",
-                                               "0x" + "a" * 40))
+    c_addr = Web3.to_checksum_address(os.getenv("DATA_ASSET_REGISTRY_ADDRESS", "0x" + "a" * 40))
 
     engine = AppraisalEngine(p_key, c_id, c_addr)
 
-    # 1. Ingest Raw Data (Mocked for this example)
+    # 1. Ingest Raw Data
     raw_data = "Forensic analysis: Transaction 0xabc... reveals 4.2B unauthorized movement."
-    d_hash = Web3.keccak(text=raw_data) # Keep as bytes
+    d_hash = Web3.keccak(text=raw_data)
     print(f"✓ Data Ingested. Asset Hash: {d_hash.hex()}")
 
     # 2. Calculate Metrics (B * I * S * D)
     metrics = AppraisalMetrics(base_cost=100.0, information_density=1.8,
                               scarcity_metric=2.5, demand_vector=1.5)
 
-    valuation_usd = engine.calculate_valuation(metrics)
+    valuation_usd = engine.calculate_valuation(metrics, raw_data)
     price_eit_wei = engine.usd_to_eit_wei(valuation_usd)
 
+    print(f"✓ Entropy Calculated: {engine.calculate_entropy(raw_data):.2f}")
     print(f"✓ Valuation Calculated: ${valuation_usd:,.2f} USD")
-    print(f"✓ EIT Token Equivalent: {price_eit_wei} (10^18 units)")
+
+    if valuation_usd == 0:
+        return
 
     # 3. Generate Signed Appraisal
     creator = Web3.to_checksum_address("0x71C7656EC7ab88b098defB751B7401B5f6d147a3")
-
     params = AppraisalParams(data_hash=d_hash, price_eit_wei=price_eit_wei,
                             ipfs_cid="QmPK1s3pNYsjnu7wT2L7ck5nS1...", creator_address=creator,
                             nonce=int(time.time()))
@@ -152,12 +176,13 @@ def run_engine_example():
     # pylint: disable=no-value-for-parameter
     result = engine.generate_appraisal_signature(params)
 
-    # Convert bytes to hex for JSON serialization in the print
-    serializable_result = json.loads(json.dumps(result))
-    serializable_result["appraisal"]["dataHash"] = "0x" + result["appraisal"]["dataHash"].hex()
+    # Manual conversion for HexBytes
+    ser_app = result["appraisal"].copy()
+    ser_app["dataHash"] = "0x" + ser_app["dataHash"].hex()
+    ser_res = {"appraisal": ser_app, "signature": result["signature"]}
 
     print("\n--- CRYPTOGRAPHIC APPRAISAL PROOF ---")
-    print(json.dumps(serializable_result, indent=2))
+    print(json.dumps(ser_res, indent=2))
     print("--------------------------------------\n")
 
 if __name__ == "__main__":
