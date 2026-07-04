@@ -40,6 +40,7 @@ class AppraisalEngine:
     Engine for calculating data asset value and generating cryptographic signatures.
     """
     def __init__(self, appraiser_private_key, chain_id, contract_address):
+        # pylint: disable=no-value-for-parameter
         self.account = Account.from_key(appraiser_private_key)
         self.chain_id = chain_id
         self.contract_address = contract_address
@@ -119,27 +120,21 @@ def run_engine_example():
     print("🚀 Initializing Epiphany Appraisal Engine...")
 
     # Configuration (use environment or defaults for testing)
-    private_key = os.getenv("APPRAISER_PRIVATE_KEY", "0x" + "9" * 64)
-    chain_id = int(os.getenv("CHAIN_ID", "1337"))
-    # Use str type for default to satisfy Pylint
-    default_addr = "0x" + "a" * 40
-    contract_address = Web3.to_checksum_address(os.getenv("DATA_ASSET_REGISTRY_ADDRESS",
-                                                         default_addr))
+    p_key = os.getenv("APPRAISER_PRIVATE_KEY", "0x" + "9" * 64)
+    c_id = int(os.getenv("CHAIN_ID", "1337"))
+    c_addr = Web3.to_checksum_address(os.getenv("DATA_ASSET_REGISTRY_ADDRESS",
+                                               "0x" + "a" * 40))
 
-    engine = AppraisalEngine(private_key, chain_id, contract_address)
+    engine = AppraisalEngine(p_key, c_id, c_addr)
 
     # 1. Ingest Raw Data (Mocked for this example)
     raw_data = "Forensic analysis: Transaction 0xabc... reveals 4.2B unauthorized movement."
-    data_hash = Web3.keccak(text=raw_data) # Keep as bytes
-    print(f"✓ Data Ingested. Asset Hash: {data_hash.hex()}")
+    d_hash = Web3.keccak(text=raw_data) # Keep as bytes
+    print(f"✓ Data Ingested. Asset Hash: {d_hash.hex()}")
 
     # 2. Calculate Metrics (B * I * S * D)
-    metrics = AppraisalMetrics(
-        base_cost=100.0,
-        information_density=1.8,
-        scarcity_metric=2.5,
-        demand_vector=1.5
-    )
+    metrics = AppraisalMetrics(base_cost=100.0, information_density=1.8,
+                              scarcity_metric=2.5, demand_vector=1.5)
 
     valuation_usd = engine.calculate_valuation(metrics)
     price_eit_wei = engine.usd_to_eit_wei(valuation_usd)
@@ -148,18 +143,13 @@ def run_engine_example():
     print(f"✓ EIT Token Equivalent: {price_eit_wei} (10^18 units)")
 
     # 3. Generate Signed Appraisal
-    ipfs_cid = "QmPK1s3pNYsjnu7wT2L7ck5nS1..."
     creator = Web3.to_checksum_address("0x71C7656EC7ab88b098defB751B7401B5f6d147a3")
-    nonce = int(time.time())
 
-    params = AppraisalParams(
-        data_hash=data_hash,
-        price_eit_wei=price_eit_wei,
-        ipfs_cid=ipfs_cid,
-        creator_address=creator,
-        nonce=nonce
-    )
+    params = AppraisalParams(data_hash=d_hash, price_eit_wei=price_eit_wei,
+                            ipfs_cid="QmPK1s3pNYsjnu7wT2L7ck5nS1...", creator_address=creator,
+                            nonce=int(time.time()))
 
+    # pylint: disable=no-value-for-parameter
     result = engine.generate_appraisal_signature(params)
 
     # Convert bytes to hex for JSON serialization in the print
