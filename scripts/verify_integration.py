@@ -9,7 +9,7 @@ from typing import Any
 from web3 import Web3
 from eth_account import Account
 import solcx
-from appraisal_engine import AppraisalEngine, AppraisalMetrics, AppraisalParams
+from scripts.appraisal_engine import AppraisalEngine, AppraisalMetrics, AppraisalParams
 
 # ==============================================================================
 # EPIPHANY INTEGRATION VERIFIER - END-TO-END SYSTEM TEST
