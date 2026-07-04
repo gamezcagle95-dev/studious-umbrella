@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 interface IProvenanceRegistry {
-    function mintDataNFT(address recipient, string calldata ipfsCID) external;
+    function mintDataNFT(address recipient, string calldata ipfsCID) external returns (uint256);
 }
 
 /**
@@ -24,7 +24,7 @@ contract DataAssetRegistry is AccessControl, EIP712 {
 
     // EIP-712 Struct Type Hash
     bytes32 public constant ASSET_APPRAISAL_TYPEHASH = keccak256(
-        "AssetAppraisal(bytes32 assetHash,uint256 price,string ipfsCID,uint256 nonce,uint256 expiry,address creator)"
+        "AssetAppraisal(bytes32 assetHash,uint256 price,uint256 estimatedTokens,string ipfsCID,uint256 nonce,uint256 expiry,address creator)"
     );
 
     // External dependencies
@@ -35,6 +35,7 @@ contract DataAssetRegistry is AccessControl, EIP712 {
     struct AssetDetails {
         bytes32 assetHash;
         uint256 price;
+        uint256 estimatedTokens;
         string ipfsCID;
         address creator;
         bool registered;
@@ -72,6 +73,7 @@ contract DataAssetRegistry is AccessControl, EIP712 {
     struct AssetAppraisal {
         bytes32 assetHash;
         uint256 price;
+        uint256 estimatedTokens; // Now trusted inside the signed struct
         string ipfsCID;
         uint256 nonce;
         uint256 expiry;
@@ -133,8 +135,7 @@ contract DataAssetRegistry is AccessControl, EIP712 {
      */
     function purchaseAsset(
         AssetAppraisal calldata appraisal,
-        bytes calldata signature,
-        uint256 estimatedTokens
+        bytes calldata signature
     ) external whenNotPaused {
         // 1. Invariant & Replay Protection Checks
         require(block.timestamp <= appraisal.expiry, "Appraisal signature has expired");
@@ -148,6 +149,7 @@ contract DataAssetRegistry is AccessControl, EIP712 {
             ASSET_APPRAISAL_TYPEHASH,
             appraisal.assetHash,
             appraisal.price,
+            appraisal.estimatedTokens,
             keccak256(bytes(appraisal.ipfsCID)),
             appraisal.nonce,
             appraisal.expiry,
@@ -159,11 +161,14 @@ contract DataAssetRegistry is AccessControl, EIP712 {
         require(hasRole(APPRAISER_ROLE, recoveredSigner), "Invalid signature: Appraiser not authorized");
 
         // 3. Dynamic Appraisal Sanity Check (The Circuit Breaker / Kill-Switch)
-        if (estimatedTokens > 0) {
-            uint256 pricePerToken = (appraisal.price * 10**18) / estimatedTokens;
+        if (appraisal.estimatedTokens > 0) {
+            uint256 pricePerToken = (appraisal.price * 10**18) / appraisal.estimatedTokens;
             if (pricePerToken > maxPricePerTokenInEIT) {
+                // Note: Revert rolls back the state change to isPaused.
+                // We acknowledge this but keep the logic for event logging clarity
+                // and immediate transaction blocking.
                 isPaused = true;
-                emit CircuitBreakerTriggered(appraisal.assetHash, appraisal.price, estimatedTokens);
+                emit CircuitBreakerTriggered(appraisal.assetHash, appraisal.price, appraisal.estimatedTokens);
                 revert("Anomaly Detected: Price-per-token exceeds limit. Circuit breaker triggered.");
             }
         }
@@ -173,6 +178,7 @@ contract DataAssetRegistry is AccessControl, EIP712 {
         if (!asset.registered) {
             asset.assetHash = appraisal.assetHash;
             asset.price = appraisal.price;
+            asset.estimatedTokens = appraisal.estimatedTokens;
             asset.ipfsCID = appraisal.ipfsCID;
             asset.creator = appraisal.creator;
             asset.registered = true;
@@ -185,11 +191,10 @@ contract DataAssetRegistry is AccessControl, EIP712 {
             );
         } else {
             // Confirm the pricing parameters have not been altered
-            require(asset.price == appraisal.price, "Price mismatch: Asset already registered with a different rate");
+            require(asset.price == appraisal.price, "Price mismatch: Asset already registered");
         }
 
         // 5. Token Settlement (Checks-Effects-Interactions)
-        // Pull EIT ERC-20 tokens from the buyer directly to the creator
         bool success = paymentToken.transferFrom(msg.sender, appraisal.creator, appraisal.price);
         require(success, "EIT token settlement transfer failed");
 

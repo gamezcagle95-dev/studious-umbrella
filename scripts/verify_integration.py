@@ -79,6 +79,7 @@ def run_integration_test() -> None:
     params = AppraisalSigningParams(
         asset_hash_hex=asset_hash,
         price_eit_base=price_in_eit,
+        estimated_tokens=len(SAMPLE_TRAJECTORY.split()),  # Simple token estimation
         ipfs_cid=ipfs_cid,
         nonce=42,
         expiry=9999999999,

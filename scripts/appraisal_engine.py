@@ -18,6 +18,7 @@ class AppraisalSigningParams:
     """Container for appraisal parameters to satisfy Pylint argument limits."""
     asset_hash_hex: str
     price_eit_base: int
+    estimated_tokens: int
     ipfs_cid: str
     nonce: int
     expiry: int
@@ -78,6 +79,7 @@ def get_appraisal_payload(params: AppraisalSigningParams) -> dict:
             "AssetAppraisal": [
                 {"name": "assetHash", "type": "bytes32"},
                 {"name": "price", "type": "uint256"},
+                {"name": "estimatedTokens", "type": "uint256"},
                 {"name": "ipfsCID", "type": "string"},
                 {"name": "nonce", "type": "uint256"},
                 {"name": "expiry", "type": "uint256"},
@@ -94,6 +96,7 @@ def get_appraisal_payload(params: AppraisalSigningParams) -> dict:
         "message": {
             "assetHash": bytes.fromhex(params.asset_hash_hex.replace("0x", "")),
             "price": params.price_eit_base,
+            "estimatedTokens": params.estimated_tokens,
             "ipfsCID": params.ipfs_cid,
             "nonce": params.nonce,
             "expiry": params.expiry,
