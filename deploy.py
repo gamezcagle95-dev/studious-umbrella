@@ -78,7 +78,32 @@ def run_deployment_loop():
     registry_address = deploy_contract(w3, compiled_sol, registry_config)
     print(f"✅ REGISTRY DEPLOYED: {registry_address}")
 
+    # 3. Link Registry to Ledger
+    print(f"🔗 Linking Registry {registry_address} to Ledger {ledger_address}...")
+    link_ledger_to_registry(w3, compiled_sol, ledger_config, ledger_address, registry_address)
+
     mock_deployment_output(ledger_address, registry_address)
+
+def link_ledger_to_registry(w3, compiled_sol, ledger_config: DeploymentConfig,
+                            ledger_address: str, registry_address: str):
+    """
+    Calls setRegistryAddress on the ProvenanceLedger contract.
+    """
+    abi = compiled_sol["contracts"][ledger_config.file_name][ledger_config.contract_name]["abi"]
+    ledger_contract = w3.eth.contract(address=ledger_address, abi=abi)
+
+    nonce = w3.eth.get_transaction_count(ledger_config.account)
+    tx = ledger_contract.functions.setRegistryAddress(registry_address).build_transaction({
+        "chainId": w3.eth.chain_id,
+        "gasPrice": w3.eth.gas_price,
+        "from": ledger_config.account,
+        "nonce": nonce,
+    })
+
+    signed_tx = w3.eth.account.sign_transaction(tx, private_key=ledger_config.pkey)
+    tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+    w3.eth.wait_for_transaction_receipt(tx_hash)
+    print(f"✓ Registry link established on-chain.")
 
 def compile_files():
     """
