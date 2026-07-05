@@ -16,13 +16,61 @@ echo "⚙️  Building contract target pipelines..."
 mkdir -p "$ARTIFACT_DIR/abi"
 mkdir -p "$ARTIFACT_DIR/bytecode"
 
-# Copy pre-configured contract schemas if available
-if ls src/contracts/*.json >/dev/null 2>&1; then
-    cp src/contracts/*.json "$ARTIFACT_DIR/abi/"
-fi
+# Compile contracts and generate JSON artifacts
+python3 <<PYEOF
+import os
+import json
+import solcx
+
+def build():
+    # Ensure solc is installed
+    if '0.8.26' not in solcx.get_installed_solc_versions():
+        solcx.install_solc("0.8.26")
+    solcx.set_solc_version("0.8.26")
+
+    files = [
+        "src/contracts/ProvenanceLedger.sol",
+        "src/contracts/ProvenanceRegistry.sol",
+        "src/contracts/DataAssetRegistry.sol"
+    ]
+
+    sources = {}
+    for file in files:
+        if os.path.exists(file):
+            with open(file, "r", encoding="utf-8") as f:
+                sources[os.path.basename(file)] = {"content": f.read()}
+
+    compiled = solcx.compile_standard({
+        "language": "Solidity",
+        "sources": sources,
+        "settings": {
+            "optimizer": {"enabled": True, "runs": 200},
+            "outputSelection": {"*": {"*": ["abi", "evm.bytecode.object"]}},
+            "remappings": ["@openzeppelin/=node_modules/@openzeppelin/"]
+        }
+    }, allow_paths=os.getcwd())
+
+    for source_file, contracts in compiled['contracts'].items():
+        for contract_name, data in contracts.items():
+            # Skip OpenZeppelin internal contracts
+            if source_file.startswith("node_modules"):
+                continue
+
+            # Save ABI
+            abi_path = os.path.join("$ARTIFACT_DIR", "abi", f"{contract_name}.json")
+            with open(abi_path, "w") as f:
+                json.dump(data['abi'], f, indent=2)
+
+            # Save Bytecode
+            bin_path = os.path.join("$ARTIFACT_DIR", "bytecode", f"{contract_name}.bin")
+            with open(bin_path, "w") as f:
+                f.write(data['evm']['bytecode']['object'])
+
+build()
+PYEOF
 
 # Populate standardized build metadata manifest
-cat <<EOF > "$ARTIFACT_DIR/build-info.json"
+cat <<MANIFEST_EOF > "$ARTIFACT_DIR/build-info.json"
 {
   "target": "$TARGET",
   "timestamp": "$TIMESTAMP",
@@ -30,7 +78,7 @@ cat <<EOF > "$ARTIFACT_DIR/build-info.json"
   "compiler": "solc-0.8.26",
   "profile": "Epiphany Protocol"
 }
-EOF
+MANIFEST_EOF
 
 # Update rolling 'latest' shortcut via relative symlink
 echo "🔗 Synchronizing 'latest' build reference pointer..."
