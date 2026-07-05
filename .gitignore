@@ -1,13 +1,31 @@
-# Dependencies and execution runtimes
-node_modules/
+# Python Virtual Environment and Cache
 venv/
+.venv/
 __pycache__/
 *.pyc
+.pytest_cache/
 
-# Local credentials and infrastructure private keys
+# Node Dependencies and Build Artifacts
+node_modules/
+artifacts/
+cache/
+typechain/
+typechain-types/
+out/
+.openzeppelin/
+
+# Environment Variables and Sensitive Configs
 .env
 .env.local
+.env.*.local
+*.pem
+*.key
 private_key.json
+
+# Local Hashing Pipeline Artifacts
+# (We exclude local proof packets to keep the public repo clean)
+artifacts/proof_packet.json
+artifacts/proofs/
 
 # Raw training interaction datasets and system weights
 data/datasets/
