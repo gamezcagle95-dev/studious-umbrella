@@ -32,14 +32,16 @@ jobs:
 
     # 4. Enforce Pylint 10/10 standards
     - name: Run Pylint Checks
+      env:
+        PYTHONPATH: .
       run: |
-        export PYTHONPATH=$PYTHONPATH:.
         pylint scripts/appraisal_engine.py scripts/verify_integration.py pipelines/src/pipeline_hashing.py
 
     # 5. Run cryptographic signature and logic verification
     - name: Run Cryptographic Integration Tests
+      env:
+        PYTHONPATH: .
       run: |
-        export PYTHONPATH=$PYTHONPATH:.
         python3 scripts/verify_integration.py
         python3 pipelines/src/pipeline_hashing.py --test
 
@@ -54,10 +56,11 @@ jobs:
     - name: Install Smart Contract Dependencies
       run: npm install
 
+    # Note: Using bin/build.contracts.sh as the standard entry point
     - name: Compile Solidity Contracts (0.8.26)
       run: |
-        # Use our build script or hardhat if configured
         if [ -f "bin/build.contracts.sh" ]; then
+          chmod +x bin/build.contracts.sh
           ./bin/build.contracts.sh
         else
           echo "No build script found, skipping compilation check."
