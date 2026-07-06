@@ -9,6 +9,20 @@ import datetime
 import argparse
 import tempfile
 
+def calculate_file_hash(file_path, chunk_size=65536):
+    """
+    Calculates the SHA-256 hash of a file in chunks to optimize memory.
+    This is used for protocol-level consistency across auditing tools.
+    """
+    sha256 = hashlib.sha256()
+    with open(file_path, "rb") as file_handle:
+        while True:
+            chunk = file_handle.read(chunk_size)
+            if not chunk:
+                break
+            sha256.update(chunk)
+    return sha256.hexdigest()
+
 def generate_proof_packet(file_path, evaluator):
     """
     Generates a cryptographic proof packet for a target file.
@@ -17,9 +31,7 @@ def generate_proof_packet(file_path, evaluator):
         print(f"❌ Error: File not found at {file_path}")
         sys.exit(1)
 
-    with open(file_path, "rb") as f:
-        content = f.read()
-        sha256_hash = hashlib.sha256(content).hexdigest()
+    sha256_hash = calculate_file_hash(file_path)
 
     timestamp = datetime.datetime.now(datetime.timezone.utc)
     proof_packet = {
