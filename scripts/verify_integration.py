@@ -10,6 +10,22 @@ from web3 import Web3
 from eth_account import Account
 from appraisal_engine import AppraisalEngine, AppraisalParams
 
+def setup_appraisal(account_address):
+    """Sets up the appraisal parameters."""
+    engine = AppraisalEngine()
+    trajectory = "Alpha-7 pool forensic analysis identifying $4.2B USD leakage."
+    usd_val = engine.calculate_valuation(trajectory)
+    eit_price = engine.usd_to_eit(usd_val)
+    data_hash = Web3.keccak(text=trajectory).hex()
+    ipfs_cid = "QmExample123"
+    nonce = int(time.time())
+    expiry = nonce + 3600
+
+    print(f"💰 Appraisal: {eit_price / 10**18:.2f} EIT")
+    return engine, AppraisalParams(
+        data_hash, eit_price, ipfs_cid, nonce, expiry, account_address
+    )
+
 def verify():
     """Executes the end-to-end verification logic."""
     print("🧪 Starting E2E Integration Verification...")
@@ -32,21 +48,12 @@ def verify():
     print(f"👤 Using account: {account.address}")
 
     # 2. Setup Appraisal
-    engine = AppraisalEngine()
-    trajectory = "Alpha-7 pool forensic analysis identifying $4.2B USD leakage."
-    usd_val = engine.calculate_valuation(trajectory)
-    eit_price = engine.usd_to_eit(usd_val)
-    data_hash = Web3.keccak(text=trajectory).hex()
-    ipfs_cid = "QmExample123"
-    nonce = int(time.time())
-    expiry = nonce + 3600
-
-    print(f"💰 Appraisal: {eit_price / 10**18:.2f} EIT")
+    engine, params = setup_appraisal(account.address)
 
     # 3. Sign Appraisal
     dar_address = config["contracts"]["DataAssetRegistry"]
     signature = engine.sign_appraisal_eip712(
-        AppraisalParams(data_hash, eit_price, ipfs_cid, nonce, expiry, account.address),
+        params,
         private_key,
         w3.eth.chain_id if w3.is_connected() else 1337,
         dar_address

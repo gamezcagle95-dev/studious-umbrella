@@ -29,11 +29,11 @@ echo "🔧 Configuring dual-remote push targets..."
 # Get current origin URL
 ORIGIN_URL=$(git remote get-url origin 2>/dev/null || echo "git@github.com:wurk-coder/epiphany-protocol.git")
 
-# Reset push URLs to avoid duplicates
-git remote set-url --push origin "$ORIGIN_URL"
-git remote set-url --add --push origin "$ORIGIN_URL"
+# Clear existing push URLs to start fresh and avoid duplicates
+git config --unset-all remote.origin.pushurl || true
 
-# Generate and add GitLab mirror URL
+# Add primary and mirror URLs
+git remote set-url --add --push origin "$ORIGIN_URL"
 GITLAB_URL=$(echo "$ORIGIN_URL" | sed 's/github.com/gitlab.com/')
 git remote set-url --add --push origin "$GITLAB_URL"
 
