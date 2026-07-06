@@ -24,6 +24,14 @@ class DeploymentConfig:
     pkey: str
     args: List[Any]
 
+@dataclass
+class LinkConfig:
+    """Container for linking parameters to reduce function argument count."""
+    ledger_address: str
+    registry_address: str
+    account: str
+    pkey: str
+
 load_dotenv()
 
 def run_deployment_loop():
@@ -78,6 +86,17 @@ def run_deployment_loop():
     registry_address = deploy_contract(w3, compiled_sol, registry_config)
     print(f"✅ REGISTRY DEPLOYED: {registry_address}")
 
+    # 3. Link Registry to Ledger
+    print("🔗 Linking Registry to Ledger...")
+    link_config = LinkConfig(
+        ledger_address=ledger_address,
+        registry_address=registry_address,
+        account=account_address,
+        pkey=private_key
+    )
+    link_tx(w3, compiled_sol, link_config)
+    print("✅ REGISTRY LINKED TO LEDGER")
+
     mock_deployment_output(ledger_address, registry_address)
 
 def compile_files():
@@ -89,6 +108,8 @@ def compile_files():
     with open("src/contracts/ProvenanceRegistry.sol", "r", encoding="utf-8") as f:
         registry_src = f.read()
 
+    node_modules_path = os.path.abspath("node_modules")
+
     return compile_standard({
         "language": "Solidity",
         "sources": {
@@ -96,9 +117,32 @@ def compile_files():
             "ProvenanceRegistry.sol": {"content": registry_src}
         },
         "settings": {
+            "remappings": [
+                f"@openzeppelin/={node_modules_path}/@openzeppelin/"
+            ],
             "outputSelection": {"*": {"*": ["abi", "evm.bytecode.object"]}}
         }
-    }, allow_paths=os.path.abspath("node_modules"))
+    }, allow_paths=node_modules_path)
+
+def link_tx(w3, compiled_sol, config: LinkConfig):
+    """
+    Calls setRegistryAddress on the ProvenanceLedger contract.
+    """
+    abi = compiled_sol["contracts"]["ProvenanceLedger.sol"]["ProvenanceLedger"]["abi"]
+    ledger_contract = w3.eth.contract(address=config.ledger_address, abi=abi)
+
+    nonce = w3.eth.get_transaction_count(config.account)
+    # pylint: disable=no-value-for-parameter
+    tx = ledger_contract.functions.setRegistryAddress(config.registry_address).build_transaction({
+        "chainId": w3.eth.chain_id,
+        "gasPrice": w3.eth.gas_price,
+        "from": config.account,
+        "nonce": nonce,
+    })
+
+    signed_tx = w3.eth.account.sign_transaction(tx, private_key=config.pkey)
+    tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+    w3.eth.wait_for_transaction_receipt(tx_hash)
 
 def deploy_contract(w3, compiled_sol, config: DeploymentConfig):
     """

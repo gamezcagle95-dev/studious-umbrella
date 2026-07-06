@@ -1,5 +1,13 @@
 {
+  "type": "module",
   "dependencies": {
-    "@openzeppelin/contracts": "^5.0.2"
+    "@openzeppelin/contracts": "^5.0.2",
+    "dotenv": "^17.4.2",
+    "viem": "^2.54.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
   }
 }

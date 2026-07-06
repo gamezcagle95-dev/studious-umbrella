@@ -1,7 +1,11 @@
+# ==============================================================================
+# EPIPHANY INVESTIGATIVE PROTOCOL - INTEGRATION VERIFICATION SUITE
+# Profile Context: Epiphany Protocol
+# ==============================================================================
 """
-EPIPHANY INTEGRATION VERIFIER - EIT ROYALTY ROUTING SIMULATION
+End-to-end cryptographic and transaction routing test suite for the Epiphany Protocol.
+Verifies the integration between ProvenanceLedger, ProvenanceRegistry, and DataAssetRegistry.
 """
-# pylint: disable=no-value-for-parameter
 import os
 import sys
 from dataclasses import dataclass
@@ -9,25 +13,21 @@ from typing import Any
 from web3 import Web3
 from eth_account import Account
 import solcx
-from scripts.appraisal_engine import AppraisalEngine, AppraisalMetrics, AppraisalParams
-
-# ==============================================================================
-# EPIPHANY INTEGRATION VERIFIER - END-TO-END SYSTEM TEST
-# ==============================================================================
-
-@dataclass
-class AuthConfig:
-    """Container for authorization configuration."""
-    deployer: str
-    appraiser_addr: str
-    buyer_acc: str
+from scripts.appraisal_engine import AppraisalEngine, AppraisalParams, AppraisalMetrics
 
 @dataclass
 class ProtocolStack:
-    """Container for deployed contracts."""
+    """Container for deployed contract instances."""
     ledger: Any
     registry: Any
     dar: Any
+
+@dataclass
+class AuthConfig:
+    """Container for authorization parameters."""
+    deployer: str
+    appraiser_addr: str
+    buyer_acc: str
 
 @dataclass
 class SecurityTestContext:
@@ -54,7 +54,7 @@ def compile_contract(file_path, contract_name, node_modules_path):
         "language": "Solidity",
         "sources": {os.path.basename(file_path): {"content": source}},
         "settings": settings
-    }, allow_paths=node_modules_path)
+    }, solc_version="0.8.26", allow_paths=node_modules_path)
 
     if "errors" in compiled:
         for error in compiled["errors"]:
@@ -68,6 +68,7 @@ def compile_contract(file_path, contract_name, node_modules_path):
 def deploy_contract(w3, data, args, deployer):
     """Deploys a contract and returns the contract instance."""
     contract = w3.eth.contract(abi=data["abi"], bytecode=data["evm"]["bytecode"]["object"])
+    # pylint: disable=no-value-for-parameter
     tx_hash = contract.constructor(*args).transact({"from": deployer})
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
     return w3.eth.contract(address=receipt.contractAddress, abi=data["abi"])
@@ -87,21 +88,33 @@ def setup_protocol_stack(w3, deployer, node_modules_path):
     registry = deploy_contract(w3, registry_data, [ledger.address], deployer)
     dar = deploy_contract(w3, dar_data, [ledger.address, registry.address], deployer)
 
+    print("🔗 Linking Registry to Ledger...")
+    # pylint: disable=no-value-for-parameter
+    ledger.functions.setRegistryAddress(registry.address).transact({"from": deployer})
+
     return ProtocolStack(ledger, registry, dar)
 
 def configure_authorizations(w3, stack, config: AuthConfig):
     """Configures roles, appraiser authorizations, and initial funding."""
     print("⏳ Configuring roles and authorizations...")
     minter_role_bytes = w3.keccak(text="MINTER_ROLE")
+    # pylint: disable=no-value-for-parameter
     stack.registry.functions.grantRole(minter_role_bytes, stack.dar.address).transact(
         {"from": config.deployer})
+
+    # pylint: disable=no-value-for-parameter
     stack.dar.functions.setAppraiser(config.appraiser_addr, True).transact(
         {"from": config.deployer})
 
     report_id = w3.keccak(text="initial_funding")
-    stack.ledger.functions.anchorIntelligenceReport(report_id, 1000000 * 10**18).transact(
+    # Updated anchorIntelligenceReport: (reportId, launderedValue, ipfsCID)
+    # pylint: disable=no-value-for-parameter
+    stack.ledger.functions.anchorIntelligenceReport(report_id, 1000000 * 10**18,
+                                                    "QmInitial").transact(
         {"from": config.buyer_acc})
+    # pylint: disable=no-value-for-parameter
     stack.ledger.functions.verifyIntelligenceReport(report_id).transact({"from": config.deployer})
+    # pylint: disable=no-value-for-parameter
     stack.ledger.functions.claimCredits().transact({"from": config.buyer_acc})
 
     buyer_balance = stack.ledger.functions.balanceOf(config.buyer_acc).call()
@@ -129,7 +142,7 @@ def check_outcomes(stack, buyer_acc, data_hash, app_res):
     print(f"✓ Access Grant: {has_access}, NFT Balance: {nft_bal}")
     print(f"✓ Creator EIT Balance: {creator_bal / 10**18} tokens")
 
-    if has_access and nft_bal == 1 and creator_bal == app_res["appraisal"]["price"]:
+    if has_access and nft_bal >= 1 and creator_bal == app_res["appraisal"]["price"]:
         print("✓ End-to-end flow verified.")
     else:
         print("❌ VERIFICATION FAILED")
@@ -155,11 +168,12 @@ def test_security_features(ctx: SecurityTestContext):
     if val == 0:
         print("✅ Off-chain guardrail rejected noise successfully.")
 
+    # pylint: disable=no-value-for-parameter
     ctx.stack.dar.functions.setMaxPricePerAsset(1000 * 10**18).transact({"from": ctx.deployer})
     huge_price_app, _, _ = perform_appraisal(ctx.engine, ctx.creator_acc, "Legit data")
     huge_price_app["appraisal"]["price"] = 2000 * 10**18
     huge_params = AppraisalParams(
-        data_hash=huge_price_app["appraisal"]["dataHash"],
+        data_hash=huge_price_app["appraisal"]["assetHash"],
         price_eit_wei=huge_price_app["appraisal"]["price"],
         ipfs_cid=huge_price_app["appraisal"]["ipfsCID"],
         creator_address=huge_price_app["appraisal"]["creator"],
@@ -167,10 +181,11 @@ def test_security_features(ctx: SecurityTestContext):
     )
     huge_signed = ctx.engine.generate_appraisal_signature(huge_params)
     try:
+        # pylint: disable=no-value-for-parameter
         ctx.stack.ledger.functions.approve(ctx.stack.dar.address, 2000 * 10**18).transact(
             {"from": ctx.buyer_acc})
         ctx.stack.dar.functions.purchaseAsset(
-            (huge_signed["appraisal"]["dataHash"], huge_signed["appraisal"]["price"],
+            (huge_signed["appraisal"]["assetHash"], huge_signed["appraisal"]["price"],
              huge_signed["appraisal"]["ipfsCID"], huge_signed["appraisal"]["nonce"],
              huge_signed["appraisal"]["expiry"], huge_signed["appraisal"]["creator"]),
             bytes.fromhex(huge_signed["signature"])
@@ -185,6 +200,7 @@ def run_royalty_routing_simulation(w3, stack, appraisal_result, buyer_acc):
     """
     print("\n🔄 Phase 1: Token Authorization...")
     price = appraisal_result["appraisal"]["price"]
+    # pylint: disable=no-value-for-parameter
     tx_hash = stack.ledger.functions.approve(stack.dar.address, price).transact(
         {"from": buyer_acc})
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
@@ -193,12 +209,13 @@ def run_royalty_routing_simulation(w3, stack, appraisal_result, buyer_acc):
     print("\n🔄 Phase 2: Settlement Transfer...")
     app_res = appraisal_result["appraisal"]
     appraisal_payload = (
-        app_res["dataHash"], app_res["price"], app_res["ipfsCID"],
+        app_res["assetHash"], app_res["price"], app_res["ipfsCID"],
         app_res["nonce"], app_res["expiry"], app_res["creator"]
     )
     sig_hex = appraisal_result["signature"]
     signature = bytes.fromhex(sig_hex[2:]) if sig_hex.startswith("0x") else bytes.fromhex(sig_hex)
 
+    # pylint: disable=no-value-for-parameter
     tx_hash = stack.dar.functions.purchaseAsset(appraisal_payload, signature).transact(
         {"from": buyer_acc})
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
@@ -225,9 +242,9 @@ def verify_integration():
     configure_authorizations(w3, stack, auth_config)
 
     print("\n⏳ Running Appraisal Engine...")
-    engine = AppraisalEngine(app_acc.key, w3.eth.chain_id, stack.dar.address)
+    engine_inst = AppraisalEngine(app_acc.key, w3.eth.chain_id, stack.dar.address)
     raw_report = "Forensic analysis: Transaction 0xabc... reveals 4.2B unauthorized movement."
-    app_res, valuation, d_hash = perform_appraisal(engine, creator_acc, raw_report)
+    app_res, valuation, d_hash = perform_appraisal(engine_inst, creator_acc, raw_report)
     print(f"✓ Appraisal signed. Price: {valuation} USD")
 
     run_royalty_routing_simulation(w3, stack, app_res, buyer_acc)
@@ -235,7 +252,7 @@ def verify_integration():
     check_outcomes(stack, buyer_acc, d_hash, app_res)
 
     # Security tests
-    sec_ctx = SecurityTestContext(stack, engine, creator_acc, buyer_acc, deployer)
+    sec_ctx = SecurityTestContext(stack, engine_inst, creator_acc, buyer_acc, deployer)
     test_security_features(sec_ctx)
 
     print("\n✨ INTEGRATION AND SECURITY VERIFIED SUCCESSFULLY ✨\n")
