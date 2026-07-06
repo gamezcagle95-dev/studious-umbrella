@@ -12,8 +12,9 @@ import sys
 from dataclasses import dataclass
 from typing import List, Any
 from web3 import Web3
-from solcx import compile_standard, install_solc
+from solcx import install_solc
 from dotenv import load_dotenv
+from scripts.shared_compiler import get_compiled_contracts
 
 @dataclass
 class DeploymentConfig:
@@ -101,23 +102,9 @@ def run_deployment_loop():
 
 def compile_files():
     """
-    Compiles Solidity source files using the solc standard JSON input.
+    Wrapper for shared compilation logic.
     """
-    with open("src/contracts/ProvenanceLedger.sol", "r", encoding="utf-8") as f:
-        ledger_src = f.read()
-    with open("src/contracts/ProvenanceRegistry.sol", "r", encoding="utf-8") as f:
-        registry_src = f.read()
-
-    return compile_standard({
-        "language": "Solidity",
-        "sources": {
-            "ProvenanceLedger.sol": {"content": ledger_src},
-            "ProvenanceRegistry.sol": {"content": registry_src}
-        },
-        "settings": {
-            "outputSelection": {"*": {"*": ["abi", "evm.bytecode.object"]}}
-        }
-    }, allow_paths=os.path.abspath("node_modules"))
+    return get_compiled_contracts()
 
 def link_tx(w3, compiled_sol, config: LinkConfig):
     """

@@ -1,36 +1,24 @@
-import os
+"""
+Artifact generation script for Epiphany Protocol smart contracts.
+Compiles Solidity source files and saves the resulting ABI and bytecode to JSON files.
+"""
 import json
-from solcx import compile_standard, install_solc, get_installed_solc_versions
+from solcx import install_solc, get_installed_solc_versions
+from scripts.shared_compiler import get_compiled_contracts
 
 def generate_artifacts():
+    """
+    Main function to compile contracts and generate artifact JSON files.
+    """
     if not get_installed_solc_versions():
         install_solc("0.8.26")
 
-    with open("src/contracts/ProvenanceLedger.sol", "r") as f:
-        ledger_src = f.read()
-    with open("src/contracts/ProvenanceRegistry.sol", "r") as f:
-        registry_src = f.read()
+    compiled_sol = get_compiled_contracts()
 
-    node_modules_path = os.path.abspath("node_modules")
-
-    compiled_sol = compile_standard({
-        "language": "Solidity",
-        "sources": {
-            "ProvenanceLedger.sol": {"content": ledger_src},
-            "ProvenanceRegistry.sol": {"content": registry_src}
-        },
-        "settings": {
-            "remappings": [
-                f"@openzeppelin/={node_modules_path}/@openzeppelin/"
-            ],
-            "outputSelection": {"*": {"*": ["abi", "evm.bytecode.object"]}}
-        }
-    }, solc_version="0.8.26", allow_paths=node_modules_path)
-
-    with open("artifacts/ProvenanceLedger.json", "w") as f:
+    with open("artifacts/ProvenanceLedger.json", "w", encoding="utf-8") as f:
         json.dump(compiled_sol["contracts"]["ProvenanceLedger.sol"]["ProvenanceLedger"], f)
 
-    with open("artifacts/ProvenanceRegistry.json", "w") as f:
+    with open("artifacts/ProvenanceRegistry.json", "w", encoding="utf-8") as f:
         json.dump(compiled_sol["contracts"]["ProvenanceRegistry.sol"]["ProvenanceRegistry"], f)
 
     print("Artifacts generated in artifacts/")

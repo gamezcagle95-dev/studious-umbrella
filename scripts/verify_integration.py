@@ -99,7 +99,8 @@ def configure_authorizations(w3, stack, config: AuthConfig):
         {"from": config.deployer})
 
     report_id = w3.keccak(text="initial_funding")
-    stack.ledger.functions.anchorIntelligenceReport(report_id, 1000000 * 10**18).transact(
+    stack.ledger.functions.anchorIntelligenceReport(
+        report_id, 1000000 * 10**18, "QmInitialFunding").transact(
         {"from": config.buyer_acc})
     stack.ledger.functions.verifyIntelligenceReport(report_id).transact({"from": config.deployer})
     stack.ledger.functions.claimCredits().transact({"from": config.buyer_acc})

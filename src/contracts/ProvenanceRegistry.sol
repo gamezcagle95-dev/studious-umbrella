@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
  * @title ProvenanceRegistry
  * @dev Mints unique Data NFTs representing verified intellectual forensic assets.
  * Integrates directly with the core Epiphany Investigative Protocol settlement layer.
+ * Updated to support automated linkage and NFT minting via ProvenanceLedger.
  */
 contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
