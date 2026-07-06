@@ -3,13 +3,14 @@ pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title ProvenanceRegistry
  * @dev Mints unique Data NFTs representing verified intellectual forensic assets.
  * Integrates directly with the core Epiphany Investigative Protocol settlement layer.
  */
-contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
+contract ProvenanceRegistry is ERC721URIStorage, AccessControl, ReentrancyGuard {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     uint256 public tokenCount;
 
@@ -37,6 +38,7 @@ contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
      */
     function mintDataNFT(address recipient, string calldata ipfsCID)
         external
+        nonReentrant
         onlyRole(MINTER_ROLE)
         returns (uint256)
     {

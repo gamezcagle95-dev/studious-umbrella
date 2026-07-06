@@ -3,6 +3,8 @@ pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
@@ -15,7 +17,7 @@ interface IProvenanceRegistry {
  * @dev Manages the purchasing, unlocking, and anchoring of high-density training data.
  * Settles payments in native EIT tokens and verifies EIP-712 structured appraisals.
  */
-contract DataAssetRegistry is AccessControl, EIP712 {
+contract DataAssetRegistry is AccessControl, EIP712, Pausable, ReentrancyGuard {
     using ECDSA for bytes32;
 
     // Roles (Aligned with existing codebase configurations)
@@ -46,7 +48,6 @@ contract DataAssetRegistry is AccessControl, EIP712 {
     mapping(bytes32 => bool) public usedNonces; // Prevents appraisal replay attacks
 
     // Circuit Breaker State Variables
-    bool public isPaused;
     uint256 public maxPricePerTokenInEIT; // Sanity limit (maximum allowed EIT per token)
 
     // Events
@@ -115,7 +116,11 @@ contract DataAssetRegistry is AccessControl, EIP712 {
      * @dev Admin recovery interface to pause/resume contract after anomalous price spike.
      */
     function setPaused(bool _paused) external onlyRole(SENIOR_INVESTIGATOR_ROLE) {
-        isPaused = _paused;
+        if (_paused) {
+            _pause();
+        } else {
+            _unpause();
+        }
     }
 
     /**
@@ -133,14 +138,12 @@ contract DataAssetRegistry is AccessControl, EIP712 {
         AssetAppraisal calldata appraisal,
         bytes calldata signature,
         uint256 estimatedTokens
-    ) external {
-        require(!isPaused, "Contract is paused");
+    ) external whenNotPaused nonReentrant {
         // 1. Invariant & Replay Protection Checks
         require(block.timestamp <= appraisal.expiry, "Appraisal signature has expired");
 
         bytes32 nonceKey = keccak256(abi.encodePacked(appraisal.creator, appraisal.nonce));
         require(!usedNonces[nonceKey], "Appraisal nonce has already been consumed");
-        usedNonces[nonceKey] = true;
 
         // 2. Cryptographic Verification (EIP-712)
         bytes32 structHash = keccak256(abi.encode(
@@ -161,13 +164,15 @@ contract DataAssetRegistry is AccessControl, EIP712 {
         if (estimatedTokens > 0) {
             uint256 pricePerToken = (appraisal.price * 10**18) / estimatedTokens;
             if (pricePerToken > maxPricePerTokenInEIT) {
-                isPaused = true;
+                _pause();
                 emit CircuitBreakerTriggered(appraisal.assetHash, appraisal.price, estimatedTokens);
                 revert("Anomaly Detected: Price-per-token exceeds limit. Circuit breaker triggered.");
             }
         }
 
-        // 4. Register Asset (Run initial anchoring if first-time purchase)
+        // 4. State Updates (Checks-Effects-Interactions)
+        usedNonces[nonceKey] = true;
+
         AssetDetails storage asset = registeredAssets[appraisal.assetHash];
         if (!asset.registered) {
             asset.assetHash = appraisal.assetHash;
@@ -187,15 +192,6 @@ contract DataAssetRegistry is AccessControl, EIP712 {
             require(asset.price == appraisal.price, "Price mismatch: Asset already registered with a different rate");
         }
 
-        // 5. Token Settlement (Checks-Effects-Interactions)
-        // Pull EIT ERC-20 tokens from the buyer directly to the creator
-        bool success = paymentToken.transferFrom(msg.sender, appraisal.creator, appraisal.price);
-        require(success, "EIT token settlement transfer failed");
-
-        // 6. Cross-Contract Call to Mint Data NFT License (Option B)
-        provenanceRegistry.mintDataNFT(msg.sender, appraisal.ipfsCID);
-
-        // 7. Update Query-Access Mapping
         accessGrants[msg.sender][appraisal.assetHash] = true;
 
         emit AssetUnlocked(
@@ -204,5 +200,13 @@ contract DataAssetRegistry is AccessControl, EIP712 {
             appraisal.price,
             appraisal.ipfsCID
         );
+
+        // 5. External Interactions (Last)
+        // Pull EIT ERC-20 tokens from the buyer directly to the creator
+        bool success = paymentToken.transferFrom(msg.sender, appraisal.creator, appraisal.price);
+        require(success, "EIT token settlement transfer failed");
+
+        // Cross-Contract Call to Mint Data NFT License
+        provenanceRegistry.mintDataNFT(msg.sender, appraisal.ipfsCID);
     }
 }
