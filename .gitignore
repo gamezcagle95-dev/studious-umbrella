@@ -30,3 +30,4 @@ artifacts/proofs/
 # Raw training interaction datasets and system weights
 data/datasets/
 data/weights/
+.env
