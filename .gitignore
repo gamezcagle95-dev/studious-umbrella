@@ -12,3 +12,15 @@ private_key.json
 # Raw training interaction datasets and system weights
 data/datasets/
 data/weights/
+
+# Solidity artifacts and cache
+artifacts/
+cache/
+typechain/
+typechain-types/
+out/
+.openzeppelin/
+
+# Local Proof Packets
+artifacts/proof_packet.json
+artifacts/proofs/

@@ -1,10 +1,10 @@
 # ==============================================================================
-# EPIPHANY WEB3 SETTLEMENT MACHINE - DUAL-CONTRACT DEPLOYMENT ENGINE
+# EPIPHANY WEB3 SETTLEMENT MACHINE - MULTI-CONTRACT DEPLOYMENT ENGINE
 # Profile Context: Epiphany Protocol
 # ==============================================================================
 """
 Deterministic contract deployment engine for the Epiphany Protocol.
-Handles sequential deployment of the ProvenanceLedger and ProvenanceRegistry.
+Handles sequential deployment of ProvenanceLedger, ProvenanceRegistry, and DataAssetRegistry.
 """
 import os
 import json
@@ -41,7 +41,8 @@ def run_deployment_loop():
         print("💡 Simulation Mode: Mocking configuration outputs to public/settlement.json")
         mock_deployment_output(
             "0x4c0883a69102937d6231471b5dbb6204fe302702fd307ce2304598dcf3e346d1",
-            "0x71C7656EC7ab88b098defB751B7401B5f6d147a3"
+            "0x71C7656EC7ab88b098defB751B7401B5f6d147a3",
+            "0xC68749d03426eFAAd206eFaAd206eFAAd206eFAA"
         )
         return
 
@@ -56,7 +57,7 @@ def run_deployment_loop():
     # Compile files in a single pass
     compiled_sol = compile_files()
 
-    # 1. Deploy ProvenanceLedger
+    # 1. Deploy ProvenanceLedger (The EIT Token)
     ledger_config = DeploymentConfig(
         file_name="ProvenanceLedger.sol",
         contract_name="ProvenanceLedger",
@@ -67,34 +68,57 @@ def run_deployment_loop():
     ledger_address = deploy_contract(w3, compiled_sol, ledger_config)
     print(f"✅ LEDGER DEPLOYED: {ledger_address}")
 
-    # 2. Deploy ProvenanceRegistry (Passing Ledger Address to Constructor)
+    # 2. Deploy ProvenanceRegistry (Data NFT Factory)
     registry_config = DeploymentConfig(
         file_name="ProvenanceRegistry.sol",
         contract_name="ProvenanceRegistry",
         account=account_address,
         pkey=private_key,
-        args=[ledger_address]
+        args=[account_address] # Admin address
     )
     registry_address = deploy_contract(w3, compiled_sol, registry_config)
     print(f"✅ REGISTRY DEPLOYED: {registry_address}")
 
-    mock_deployment_output(ledger_address, registry_address)
+    # 3. Deploy DataAssetRegistry (Financial Clearinghouse)
+    # Args: _paymentToken (Ledger), _provenanceRegistry, _seniorInvestigator, _maxPrice (100 EIT)
+    data_registry_config = DeploymentConfig(
+        file_name="DataAssetRegistry.sol",
+        contract_name="DataAssetRegistry",
+        account=account_address,
+        pkey=private_key,
+        args=[ledger_address, registry_address, account_address, 100 * 10**18]
+    )
+    data_registry_address = deploy_contract(w3, compiled_sol, data_registry_config)
+    print(f"✅ DATA ASSET REGISTRY DEPLOYED: {data_registry_address}")
+
+    # 4. Grant MINTER_ROLE on ProvenanceRegistry to DataAssetRegistry
+    print("[Wurk] Granting MINTER_ROLE to DataAssetRegistry...")
+    grant_minter_role(
+        w3,
+        compiled_sol,
+        registry_address,
+        data_registry_address,
+        account_address,
+        private_key
+    )
+    print("✅ MINTER_ROLE GRANTED.")
+
+    mock_deployment_output(ledger_address, registry_address, data_registry_address)
 
 def compile_files():
     """
     Compiles Solidity source files using the solc standard JSON input.
     """
-    with open("src/contracts/ProvenanceLedger.sol", "r", encoding="utf-8") as f:
-        ledger_src = f.read()
-    with open("src/contracts/ProvenanceRegistry.sol", "r", encoding="utf-8") as f:
-        registry_src = f.read()
+    sources = {}
+    contract_files = ["ProvenanceLedger.sol", "ProvenanceRegistry.sol", "DataAssetRegistry.sol"]
+    for file in contract_files:
+        path = f"src/contracts/{file}"
+        with open(path, "r", encoding="utf-8") as f:
+            sources[file] = {"content": f.read()}
 
     return compile_standard({
         "language": "Solidity",
-        "sources": {
-            "ProvenanceLedger.sol": {"content": ledger_src},
-            "ProvenanceRegistry.sol": {"content": registry_src}
-        },
+        "sources": sources,
         "settings": {
             "outputSelection": {"*": {"*": ["abi", "evm.bytecode.object"]}}
         }
@@ -123,7 +147,29 @@ def deploy_contract(w3, compiled_sol, config: DeploymentConfig):
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
     return receipt.contractAddress
 
-def mock_deployment_output(ledger_addr, registry_addr):
+def grant_minter_role(w3, compiled_sol, registry_addr, data_reg_addr, acc_addr, pkey):
+    """
+    Grants MINTER_ROLE on ProvenanceRegistry to DataAssetRegistry.
+    """
+    abi = compiled_sol["contracts"]["ProvenanceRegistry.sol"]["ProvenanceRegistry"]["abi"]
+    registry_contract = w3.eth.contract(address=registry_addr, abi=abi)
+
+    # MINTER_ROLE = keccak256("MINTER_ROLE")
+    minter_role = w3.keccak(text="MINTER_ROLE")
+
+    nonce = w3.eth.get_transaction_count(acc_addr)
+    tx = registry_contract.functions.grantRole(minter_role, data_reg_addr).build_transaction({
+        "chainId": w3.eth.chain_id,
+        "gasPrice": w3.eth.gas_price,
+        "from": acc_addr,
+        "nonce": nonce,
+    })
+
+    signed_tx = w3.eth.account.sign_transaction(tx, private_key=pkey)
+    tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+    w3.eth.wait_for_transaction_receipt(tx_hash)
+
+def mock_deployment_output(ledger_addr, registry_addr, data_registry_addr):
     """
     Synchronizes deployment addresses to public/settlement.json for frontend mapping.
     """
@@ -139,6 +185,10 @@ def mock_deployment_output(ledger_addr, registry_addr):
 
     data["contracts"]["Intelligence_Ledger"] = ledger_addr
     data["contracts"]["Provenance_Registry"] = registry_addr
+    data["contracts"]["Data_Asset_Registry"] = data_registry_addr
+
+    # Legacy mapping for verify_integration compatibility
+    data["DataAssetRegistryAddress"] = data_registry_addr
 
     with open(settlement_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
