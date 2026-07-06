@@ -14,7 +14,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
  * Includes an on-chain circuit breaker and price sanity boundaries.
  */
 interface IProvenanceRegistry {
-    function mintDataNFT(address recipient, string calldata ipfsCid) external returns (uint256);
+    function mintDataNFT(address recipient, string calldata ipfsCID) external returns (uint256);
 }
 
 contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
@@ -42,7 +42,7 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
     mapping(address => bool) public isAppraiser;
     mapping(bytes32 => bool) public usedAppraisals;
     mapping(address => mapping(bytes32 => bool)) public accessGrants;
-    mapping(bytes32 => string) public assetCids;
+    mapping(bytes32 => string) public assetCIDs;
 
     event AssetUnlocked(bytes32 indexed dataHash, address indexed buyer, uint256 price);
     event AppraiserStatusChanged(address indexed appraiser, bool status);
@@ -59,6 +59,7 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
         EIP712("DataAssetRegistry", "1")
         Ownable(msg.sender)
     {
+        if (_eitToken == address(0) || _provenanceRegistry == address(0)) revert TransferFailed();
         eitToken = IERC20(_eitToken);
         provenanceRegistry = IProvenanceRegistry(_provenanceRegistry);
     }
@@ -86,6 +87,7 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
      * @dev Authorizes or revokes an appraiser address.
      */
     function setAppraiser(address appraiser, bool status) external onlyOwner {
+        if (appraiser == address(0)) revert UnauthorizedAppraiser();
         isAppraiser[appraiser] = status;
         emit AppraiserStatusChanged(appraiser, status);
     }
@@ -135,7 +137,7 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
 
         // Grant access and store metadata
         accessGrants[msg.sender][appraisal.dataHash] = true;
-        assetCids[appraisal.dataHash] = appraisal.ipfsCID;
+        assetCIDs[appraisal.dataHash] = appraisal.ipfsCID;
 
         // Mint Data NFT via ProvenanceRegistry
         provenanceRegistry.mintDataNFT(msg.sender, appraisal.ipfsCID);

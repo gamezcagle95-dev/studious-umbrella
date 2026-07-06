@@ -35,7 +35,7 @@ class AppraisalParams:
     """Container for appraisal signature parameters to satisfy Pylint."""
     data_hash: bytes
     price_eit_wei: int
-    ipfs_cid: str
+    ipfsCID: str  # pylint: disable=invalid-name
     creator_address: str
     nonce: int
     expiry_seconds: int = 3600
@@ -116,7 +116,7 @@ class AppraisalEngine:
         appraisal_data = {
             "dataHash": params.data_hash,
             "price": params.price_eit_wei,
-            "ipfsCID": params.ipfs_cid,
+            "ipfsCID": params.ipfsCID,
             "nonce": params.nonce,
             "expiry": expiry,
             "creator": params.creator_address,
@@ -170,7 +170,7 @@ def run_engine_example():
     # 3. Generate Signed Appraisal
     creator = Web3.to_checksum_address("0x71C7656EC7ab88b098defB751B7401B5f6d147a3")
     params = AppraisalParams(data_hash=d_hash, price_eit_wei=price_eit_wei,
-                            ipfs_cid="QmPK1s3pNYsjnu7wT2L7ck5nS1...", creator_address=creator,
+                            ipfsCID="QmPK1s3pNYsjnu7wT2L7ck5nS1...", creator_address=creator,
                             nonce=int(time.time()))
 
     # pylint: disable=no-value-for-parameter
