@@ -34,14 +34,26 @@ jobs:
         pip install -r requirements.txt
         pip install pylint
 
-    # 4. Enforce Pylint 10/10 standards
+    # 4. Set up Node for Solidity compilation checks
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    # 5. Install Smart Contract Dependencies
+    - name: Install Smart Contract Dependencies
+      run: npm install
+
+    # 6. Enforce Pylint 10/10 standards
     - name: Run Pylint Checks
       env:
         PYTHONPATH: .
       run: |
         pylint scripts/appraisal_engine.py scripts/verify_integration.py pipelines/src/pipeline_hashing.py
 
-    # 5. Run cryptographic signature and logic verification
+    # 7. Run cryptographic signature and logic verification
+    # Note: Requires node_modules for OpenZeppelin remappings during on-the-fly compilation
     - name: Run Cryptographic Integration Tests
       env:
         PYTHONPATH: .
@@ -49,17 +61,7 @@ jobs:
         python3 scripts/verify_integration.py
         python3 pipelines/src/pipeline_hashing.py --test
 
-    # 6. Set up Node for Solidity compilation checks
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20.x'
-        cache: 'npm'
-
-    # 7. Compile Solidity smart contracts
-    - name: Install Smart Contract Dependencies
-      run: npm install
-
+    # 8. Compile Solidity smart contracts
     # Note: Using bin/build.contracts.sh as the standard entry point
     - name: Compile Solidity Contracts (0.8.26)
       run: |
