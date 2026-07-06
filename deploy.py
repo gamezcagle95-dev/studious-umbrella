@@ -4,7 +4,7 @@
 # ==============================================================================
 """
 Deterministic contract deployment engine for the Epiphany Protocol.
-Handles sequential deployment of the ProvenanceLedger and ProvenanceRegistry.
+Handles sequential deployment of ProvenanceLedger, ProvenanceRegistry, and DataAssetRegistry.
 """
 import os
 import json
@@ -41,7 +41,8 @@ def run_deployment_loop():
         print("💡 Simulation Mode: Mocking configuration outputs to public/settlement.json")
         mock_deployment_output(
             "0x4c0883a69102937d6231471b5dbb6204fe302702fd307ce2304598dcf3e346d1",
-            "0x71C7656EC7ab88b098defB751B7401B5f6d147a3"
+            "0x71C7656EC7ab88b098defB751B7401B5f6d147a3",
+            "0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF"
         )
         return
 
@@ -78,23 +79,54 @@ def run_deployment_loop():
     registry_address = deploy_contract(w3, compiled_sol, registry_config)
     print(f"✅ REGISTRY DEPLOYED: {registry_address}")
 
-    mock_deployment_output(ledger_address, registry_address)
+    # 3. Deploy DataAssetRegistry
+    dar_config = DeploymentConfig(
+        file_name="DataAssetRegistry.sol",
+        contract_name="DataAssetRegistry",
+        account=account_address,
+        pkey=private_key,
+        args=[ledger_address, registry_address]
+    )
+    dar_address = deploy_contract(w3, compiled_sol, dar_config)
+    print(f"✅ DATA ASSET REGISTRY DEPLOYED: {dar_address}")
+
+    # 4. Grant MINTER_ROLE on ProvenanceRegistry to DataAssetRegistry
+    print("⏳ Delegating MINTER_ROLE to DataAssetRegistry...")
+    registry_abi = compiled_sol["contracts"]["ProvenanceRegistry.sol"]["ProvenanceRegistry"]["abi"]
+    registry_contract = w3.eth.contract(address=registry_address, abi=registry_abi)
+    minter_role = w3.keccak(text="MINTER_ROLE")
+
+    nonce = w3.eth.get_transaction_count(account_address)
+    tx = registry_contract.functions.grantRole(minter_role, dar_address).build_transaction({
+        "chainId": w3.eth.chain_id,
+        "gasPrice": w3.eth.gas_price,
+        "from": account_address,
+        "nonce": nonce,
+    })
+    signed_tx = w3.eth.account.sign_transaction(tx, private_key=private_key)
+    w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+    print("✓ MINTER_ROLE granted.")
+
+    mock_deployment_output(ledger_address, registry_address, dar_address)
 
 def compile_files():
     """
     Compiles Solidity source files using the solc standard JSON input.
     """
-    with open("src/contracts/ProvenanceLedger.sol", "r", encoding="utf-8") as f:
-        ledger_src = f.read()
-    with open("src/contracts/ProvenanceRegistry.sol", "r", encoding="utf-8") as f:
-        registry_src = f.read()
+    files = {
+        "ProvenanceLedger.sol": "src/contracts/ProvenanceLedger.sol",
+        "ProvenanceRegistry.sol": "src/contracts/ProvenanceRegistry.sol",
+        "DataAssetRegistry.sol": "src/contracts/DataAssetRegistry.sol"
+    }
+
+    sources = {}
+    for name, path in files.items():
+        with open(path, "r", encoding="utf-8") as f:
+            sources[name] = {"content": f.read()}
 
     return compile_standard({
         "language": "Solidity",
-        "sources": {
-            "ProvenanceLedger.sol": {"content": ledger_src},
-            "ProvenanceRegistry.sol": {"content": registry_src}
-        },
+        "sources": sources,
         "settings": {
             "outputSelection": {"*": {"*": ["abi", "evm.bytecode.object"]}}
         }
@@ -123,7 +155,7 @@ def deploy_contract(w3, compiled_sol, config: DeploymentConfig):
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
     return receipt.contractAddress
 
-def mock_deployment_output(ledger_addr, registry_addr):
+def mock_deployment_output(ledger_addr, registry_addr, dar_addr):
     """
     Synchronizes deployment addresses to public/settlement.json for frontend mapping.
     """
@@ -139,6 +171,7 @@ def mock_deployment_output(ledger_addr, registry_addr):
 
     data["contracts"]["Intelligence_Ledger"] = ledger_addr
     data["contracts"]["Provenance_Registry"] = registry_addr
+    data["contracts"]["Data_Asset_Registry"] = dar_addr
 
     with open(settlement_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)

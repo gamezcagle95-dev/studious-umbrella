@@ -28,6 +28,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
     error OnlySeniorInvestigator();
     error NoCreditsToSecure();
     error EtherTransferFailed();
+    error InvalidAddress();
 
     struct IntelligenceReport {
         uint128 identifiedLaunderedValue;
@@ -58,6 +59,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         ERC20("Epiphany Intelligence Token", "EIT")
         ERC20Permit("Epiphany Ledger")
     {
+        if (initialOwner == address(0)) revert InvalidAddress();
         seniorInvestigator = initialOwner;
     }
 
@@ -84,6 +86,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         if (msg.sender != seniorInvestigator) revert OnlySeniorInvestigator();
         IntelligenceReport storage report = intelligenceLedger[reportId];
 
+        if (report.isVerified) return; // Already verified
         report.isVerified = true;
 
         // Programmatic incentive generation: 5% of targeted value added to pulling buffer

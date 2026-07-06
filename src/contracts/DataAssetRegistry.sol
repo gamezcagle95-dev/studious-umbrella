@@ -14,7 +14,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
  * Includes an on-chain circuit breaker and price sanity boundaries.
  */
 interface IProvenanceRegistry {
-    function mintDataNFT(address recipient, string calldata ipfsCid) external returns (uint256);
+    function mintDataNFT(address recipient, string calldata ipfsCID) external returns (uint256);
 }
 
 contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
@@ -53,12 +53,14 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
     error AppraisalAlreadyUsed();
     error UnauthorizedAppraiser();
     error TransferFailed();
+    error InvalidAddress();
     error PriceExceedsSanityBoundary(uint256 requested, uint256 maxAllowed);
 
     constructor(address _eitToken, address _provenanceRegistry)
         EIP712("DataAssetRegistry", "1")
         Ownable(msg.sender)
     {
+        if (_eitToken == address(0) || _provenanceRegistry == address(0)) revert InvalidAddress();
         eitToken = IERC20(_eitToken);
         provenanceRegistry = IProvenanceRegistry(_provenanceRegistry);
     }
@@ -86,6 +88,7 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
      * @dev Authorizes or revokes an appraiser address.
      */
     function setAppraiser(address appraiser, bool status) external onlyOwner {
+        if (appraiser == address(0)) revert InvalidAddress();
         isAppraiser[appraiser] = status;
         emit AppraiserStatusChanged(appraiser, status);
     }
@@ -126,16 +129,16 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
         // Unique ID for the appraisal to prevent replay attacks
         bytes32 appraisalId = keccak256(abi.encode(appraisal.dataHash, appraisal.nonce));
         if (usedAppraisals[appraisalId]) revert AppraisalAlreadyUsed();
+
+        // CEI Pattern: Update state before external calls
         usedAppraisals[appraisalId] = true;
+        accessGrants[msg.sender][appraisal.dataHash] = true;
+        assetCids[appraisal.dataHash] = appraisal.ipfsCID;
 
         // Execute payment: Buyer -> Creator
         if (!eitToken.transferFrom(msg.sender, appraisal.creator, appraisal.price)) {
             revert TransferFailed();
         }
-
-        // Grant access and store metadata
-        accessGrants[msg.sender][appraisal.dataHash] = true;
-        assetCids[appraisal.dataHash] = appraisal.ipfsCID;
 
         // Mint Data NFT via ProvenanceRegistry
         provenanceRegistry.mintDataNFT(msg.sender, appraisal.ipfsCID);

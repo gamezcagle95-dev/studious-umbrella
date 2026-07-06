@@ -12,9 +12,6 @@ cd "${REPO_ROOT}"
 echo "[Wurk] Initializing Decentralized Command Center in ${REPO_ROOT}..."
 
 # 1. Configure Git Identity
-echo "[Wurk] Setting cryptographic commit identity..."
-git config --local user.name "wurk-coder"
-git config --local user.email "wurk@epiphany.network"
 
 # 2. Establish Dual-Remote Architecture (Overlapping Push)
 echo "[Wurk] Wiring overlapping remotes for GitHub and GitLab..."
