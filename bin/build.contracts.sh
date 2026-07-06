@@ -16,13 +16,8 @@ echo "⚙️  Building contract target pipelines..."
 mkdir -p "$ARTIFACT_DIR/abi"
 mkdir -p "$ARTIFACT_DIR/bytecode"
 
-# Copy pre-configured contract schemas if available
-if ls src/contracts/*.json >/dev/null 2>&1; then
-    cp src/contracts/*.json "$ARTIFACT_DIR/abi/"
-fi
-
 # Populate standardized build metadata manifest
-cat <<EOF > "$ARTIFACT_DIR/build-info.json"
+cat <<INFO > "$ARTIFACT_DIR/build-info.json"
 {
   "target": "$TARGET",
   "timestamp": "$TIMESTAMP",
@@ -30,11 +25,13 @@ cat <<EOF > "$ARTIFACT_DIR/build-info.json"
   "compiler": "solc-0.8.26",
   "profile": "Epiphany Protocol"
 }
-EOF
+INFO
 
 # Update rolling 'latest' shortcut via relative symlink
 echo "🔗 Synchronizing 'latest' build reference pointer..."
 rm -f "$BASE_DIR/latest"
-ln -s "./$TIMESTAMP" "$BASE_DIR/latest"
+cd "$BASE_DIR"
+ln -s "$TIMESTAMP" "latest"
+cd - > /dev/null
 
 echo "✓ Compilation artifact caching complete: $ARTIFACT_DIR"

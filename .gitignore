@@ -1,14 +1,14 @@
-# Dependencies and execution runtimes
-node_modules/
 venv/
+.venv/
 __pycache__/
-*.pyc
-
-# Local credentials and infrastructure private keys
-.env
-.env.local
-private_key.json
-
-# Raw training interaction datasets and system weights
-data/datasets/
-data/weights/
+.pytest_cache/
+node_modules/
+artifacts/contracts/
+artifacts/proofs/
+cache/
+out/
+.openzeppelin/
+.env*
+*.pem
+*.key
+.npmrc

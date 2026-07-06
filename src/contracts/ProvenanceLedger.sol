@@ -6,7 +6,6 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 /**
  * @title ProvenanceLedger
@@ -34,6 +33,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         address primaryInvestigator;
         bool isVerified;
         bool feeClaimed;
+        string ipfsCID;
     }
 
     mapping(bytes32 => IntelligenceReport) public intelligenceLedger;
@@ -44,12 +44,12 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         address creator;
         uint128 rewardAmount;
         bool isClaimed;
-        string encryptedCid;
+        string encryptedCID;
     }
 
     mapping(uint256 => Bounty) public bounties;
 
-    event ProofAnchored(bytes32 indexed reportId, uint256 value, address indexed investigator);
+    event ProofAnchored(bytes32 indexed reportId, uint256 value, address indexed investigator, string ipfsCID);
     event IntelligenceVerified(bytes32 indexed reportId, address indexed auditor);
     event RewardDistributed(address indexed investigator, uint256 amount);
     event BountyTriggered(uint256 indexed bountyId, address indexed solver);
@@ -64,17 +64,18 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
     /**
      * @dev Step 1: Anchor Forensic Findings onto the state machine.
      */
-    function anchorIntelligenceReport(bytes32 reportId, uint128 launderedValue) external whenNotPaused {
+    function anchorIntelligenceReport(bytes32 reportId, uint128 launderedValue, string calldata ipfsCID) external whenNotPaused {
         if (intelligenceLedger[reportId].primaryInvestigator != address(0)) revert ReportAlreadyAnchored();
 
         intelligenceLedger[reportId] = IntelligenceReport({
             identifiedLaunderedValue: launderedValue,
             primaryInvestigator: msg.sender,
             isVerified: false,
-            feeClaimed: false
+            feeClaimed: false,
+            ipfsCID: ipfsCID
         });
 
-        emit ProofAnchored(reportId, launderedValue, msg.sender);
+        emit ProofAnchored(reportId, launderedValue, msg.sender, ipfsCID);
     }
 
     /**
@@ -87,13 +88,13 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         report.isVerified = true;
 
         // Programmatic incentive generation: 5% of targeted value added to pulling buffer
-        uint256 reward = (report.identifiedLaunderedValue * RECOVERY_FEE_BPS) / 10000;
+        uint256 reward = (uint256(report.identifiedLaunderedValue) * RECOVERY_FEE_BPS) / 10000;
         claimableCredits[report.primaryInvestigator] += reward;
 
         emit IntelligenceVerified(reportId, msg.sender);
     }
 
-    function triggerBounty(uint256 bountyId, string calldata submissionCid) external {
+    function triggerBounty(uint256 bountyId, string calldata submissionCID) external {
         Bounty storage bounty = bounties[bountyId];
         if (bounty.isClaimed) revert BountyAlreadyClaimed();
 

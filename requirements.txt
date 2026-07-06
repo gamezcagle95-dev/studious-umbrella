@@ -1,4 +1,8 @@
-web3
-py-solc-x
-python-dotenv
-pylint
+web3==7.16.0
+eth-account==0.13.7
+eth-tester==0.13.0b1
+python-dotenv==1.0.1
+pylint==3.2.7
+pandas==2.2.3
+py-solc-x==2.0.3
+requests==2.32.3
