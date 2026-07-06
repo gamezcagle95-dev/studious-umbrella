@@ -6,27 +6,30 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
  * @title ProvenanceLedger
  * @dev Core settlement layer for the Epiphany Investigative Protocol.
  * Handles intelligence anchoring, bounty distribution, and incentive alignment.
  */
-contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
+contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard, AccessControl {
     using ECDSA for bytes32;
 
-    address public seniorInvestigator;
+    bytes32 public constant SENIOR_INVESTIGATOR_ROLE = keccak256("SENIOR_INVESTIGATOR_ROLE");
+    bytes32 public constant INVESTIGATOR_ROLE = keccak256("INVESTIGATOR_ROLE");
+
     uint64 public bountyCount;
     uint256 public constant RECOVERY_FEE_BPS = 500; // 5% performance reward fee
 
-    bytes32 private constant SECURE_TYPEHASH = keccak256("SecureAssets(address investigator)");
+    bytes32 private constant SECURE_TYPEHASH = keccak256("SecureAssets(address investigator,uint256 nonce)");
 
     error BountyAlreadyClaimed();
-    error IntelligenceHashMismatch();
     error ReportAlreadyAnchored();
-    error OnlySeniorInvestigator();
     error NoCreditsToSecure();
     error EtherTransferFailed();
+    error InvalidAddress();
+    error InvalidSignature();
 
     struct IntelligenceReport {
         uint128 identifiedLaunderedValue;
@@ -38,6 +41,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
 
     mapping(bytes32 => IntelligenceReport) public intelligenceLedger;
     mapping(address => uint256) public claimableCredits;
+    mapping(address => uint256) public nonces;
 
     struct Bounty {
         bytes32 targetHash;
@@ -53,18 +57,26 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
     event IntelligenceVerified(bytes32 indexed reportId, address indexed auditor);
     event RewardDistributed(address indexed investigator, uint256 amount);
     event BountyTriggered(uint256 indexed bountyId, address indexed solver);
+    event BountyCreated(uint256 indexed bountyId, bytes32 indexed targetHash, uint128 rewardAmount);
 
     constructor(address initialOwner)
         ERC20("Epiphany Intelligence Token", "EIT")
         ERC20Permit("Epiphany Ledger")
     {
-        seniorInvestigator = initialOwner;
+        if (initialOwner == address(0)) revert InvalidAddress();
+        _grantRole(DEFAULT_ADMIN_ROLE, initialOwner);
+        _grantRole(SENIOR_INVESTIGATOR_ROLE, initialOwner);
+        _grantRole(INVESTIGATOR_ROLE, initialOwner);
     }
 
     /**
      * @dev Step 1: Anchor Forensic Findings onto the state machine.
      */
-    function anchorIntelligenceReport(bytes32 reportId, uint128 launderedValue, string calldata ipfsCID) external whenNotPaused {
+    function anchorIntelligenceReport(
+        bytes32 reportId,
+        uint128 launderedValue,
+        string calldata ipfsCID
+    ) external onlyRole(INVESTIGATOR_ROLE) whenNotPaused {
         if (intelligenceLedger[reportId].primaryInvestigator != address(0)) revert ReportAlreadyAnchored();
 
         intelligenceLedger[reportId] = IntelligenceReport({
@@ -81,22 +93,47 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
     /**
      * @dev Step 2: Protocol Weight Auditing & Verification.
      */
-    function verifyIntelligenceReport(bytes32 reportId) external {
-        if (msg.sender != seniorInvestigator) revert OnlySeniorInvestigator();
+    function verifyIntelligenceReport(bytes32 reportId) external onlyRole(SENIOR_INVESTIGATOR_ROLE) {
         IntelligenceReport storage report = intelligenceLedger[reportId];
+        if (report.primaryInvestigator == address(0)) revert InvalidAddress();
+        if (report.isVerified) return; // Already verified
 
         report.isVerified = true;
 
-        // Programmatic incentive generation: 5% of targeted value added to pulling buffer
+        // Programmatic incentive generation: 5% of targeted value
         uint256 reward = (uint256(report.identifiedLaunderedValue) * RECOVERY_FEE_BPS) / 10000;
         claimableCredits[report.primaryInvestigator] += reward;
 
         emit IntelligenceVerified(reportId, msg.sender);
     }
 
-    function triggerBounty(uint256 bountyId, string calldata submissionCID) external {
+    /**
+     * @dev Create a new bounty for specific evidence.
+     */
+    function createBounty(
+        bytes32 targetHash,
+        uint128 rewardAmount,
+        string calldata encryptedCID
+    ) external onlyRole(SENIOR_INVESTIGATOR_ROLE) {
+        bountyCount++;
+        bounties[bountyCount] = Bounty({
+            targetHash: targetHash,
+            creator: msg.sender,
+            rewardAmount: rewardAmount,
+            isClaimed: false,
+            encryptedCID: encryptedCID
+        });
+
+        emit BountyCreated(bountyCount, targetHash, rewardAmount);
+    }
+
+    function triggerBounty(uint256 bountyId, string calldata submissionCID) external whenNotPaused {
         Bounty storage bounty = bounties[bountyId];
+        if (bounty.rewardAmount == 0) revert InvalidAddress(); // Bounty doesn't exist
         if (bounty.isClaimed) revert BountyAlreadyClaimed();
+
+        // Check submissionCID is provided
+        if (bytes(submissionCID).length == 0) revert InvalidAddress();
 
         bounty.isClaimed = true;
         claimableCredits[msg.sender] += bounty.rewardAmount;
@@ -110,15 +147,19 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
 
     /**
      * @dev Meta-transaction support for gasless asset securing using EIP-712.
-     * Allows a relayer to execute the state change if the investigator provides a valid signature.
      */
-    function metaSecureAssets(address investigator, bytes memory signature) external nonReentrant whenNotPaused {
-        bytes32 structHash = keccak256(abi.encode(SECURE_TYPEHASH, investigator));
+    function metaSecureAssets(
+        address investigator,
+        bytes calldata signature
+    ) external nonReentrant whenNotPaused {
+        uint256 nonce = nonces[investigator];
+        bytes32 structHash = keccak256(abi.encode(SECURE_TYPEHASH, investigator, nonce));
         bytes32 hash = _hashTypedDataV4(structHash);
 
-        address signer = ECDSA.recover(hash, signature);
-        require(signer == investigator, "Invalid signature");
+        address signer = hash.recover(signature);
+        if (signer != investigator) revert InvalidSignature();
 
+        nonces[investigator]++;
         _secureAssets(investigator);
     }
 
@@ -126,18 +167,26 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         uint256 amount = claimableCredits[investigator];
         if (amount == 0) revert NoCreditsToSecure();
 
-        // Zero state out entirely before minting to prevent reentrancy manipulation vectors
+        // Zero state out entirely before minting (CEI pattern)
         claimableCredits[investigator] = 0;
         _mint(investigator, amount);
 
         emit RewardDistributed(investigator, amount);
     }
 
-    function reclaimNativeAssets() external {
-        if (msg.sender != seniorInvestigator) revert OnlySeniorInvestigator();
+    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
+    }
+
+    function reclaimNativeAssets() external onlyRole(SENIOR_INVESTIGATOR_ROLE) {
         uint256 balance = address(this).balance;
         if (balance == 0) revert NoCreditsToSecure();
 
+        // CEI: No state changes here, but good practice to keep transfer last
         (bool success, ) = msg.sender.call{value: balance}("");
         if (!success) revert EtherTransferFailed();
     }

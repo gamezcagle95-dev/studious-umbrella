@@ -35,6 +35,7 @@ contract DataAssetRegistry is EIP712, ReentrancyGuard, Pausable, Ownable {
     error NonceAlreadyUsed();
     error PriceExceedsLimit();
     error UnauthorizedAppraiser();
+    error InvalidAddress();
 
     event AssetPurchased(
         bytes32 indexed dataHash,
@@ -43,21 +44,27 @@ contract DataAssetRegistry is EIP712, ReentrancyGuard, Pausable, Ownable {
         uint256 price,
         uint256 tokenId
     );
+    event AppraiserStatusChanged(address indexed appraiser, bool allowed);
+    event MaxPriceUpdated(uint256 newMaxPrice);
 
     constructor(address _eitToken, address _provenanceRegistry)
         EIP712("DataAssetRegistry", "1")
         Ownable(msg.sender)
     {
+        if (_eitToken == address(0) || _provenanceRegistry == address(0)) revert InvalidAddress();
         eitToken = IERC20(_eitToken);
         provenanceRegistry = IProvenanceRegistry(_provenanceRegistry);
     }
 
     function setAppraiser(address appraiser, bool allowed) external onlyOwner {
+        if (appraiser == address(0)) revert InvalidAddress();
         isAppraiser[appraiser] = allowed;
+        emit AppraiserStatusChanged(appraiser, allowed);
     }
 
     function setMaxPrice(uint256 newMax) external onlyOwner {
         maxPricePerAsset = newMax;
+        emit MaxPriceUpdated(newMax);
     }
 
     function purchaseAsset(
@@ -72,6 +79,7 @@ contract DataAssetRegistry is EIP712, ReentrancyGuard, Pausable, Ownable {
         if (block.timestamp > expiry) revert AppraisalExpired();
         if (usedNonces[nonce]) revert NonceAlreadyUsed();
         if (price > maxPricePerAsset) revert PriceExceedsLimit();
+        if (creator == address(0)) revert InvalidAddress();
 
         bytes32 structHash = keccak256(
             abi.encode(APPRAISAL_TYPEHASH, dataHash, price, keccak256(bytes(ipfsCID)), nonce, expiry, creator)

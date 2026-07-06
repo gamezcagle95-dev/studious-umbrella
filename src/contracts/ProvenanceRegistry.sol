@@ -39,6 +39,7 @@ contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
         returns (uint256)
     {
         if (recipient == address(0)) revert InvalidAddress();
+        if (bytes(ipfsCID).length == 0) revert InvalidAddress();
 
         tokenCount++;
         uint256 newTokenId = tokenCount;
