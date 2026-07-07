@@ -55,12 +55,13 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
     error TransferFailed();
     error PriceExceedsSanityBoundary(uint256 requested, uint256 maxAllowed);
 
-    constructor(address _eitToken, address _provenanceRegistry)
+    constructor(address _eitToken, address _provenanceRegistry, address _seniorInvestigator, uint256 _maxPricePerAsset)
         EIP712("DataAssetRegistry", "1")
-        Ownable(msg.sender)
+        Ownable(_seniorInvestigator)
     {
         eitToken = IERC20(_eitToken);
         provenanceRegistry = IProvenanceRegistry(_provenanceRegistry);
+        maxPricePerAsset = _maxPricePerAsset;
     }
 
     /**

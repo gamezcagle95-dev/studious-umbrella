@@ -1,0 +1,30 @@
+🧪 Starting End-to-End Integration Verification...
+⏳ Compiling contracts...
+⏳ Deploying Protocol Stack...
+Traceback (most recent call last):
+  File "/app/scripts/verify_integration.py", line 245, in <module>
+    verify_integration()
+  File "/app/scripts/verify_integration.py", line 223, in verify_integration
+    stack = setup_protocol_stack(w3, deployer, os.path.abspath("node_modules"))
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scripts/verify_integration.py", line 88, in setup_protocol_stack
+    dar = deploy_contract(w3, dar_data, [ledger.address, registry.address], deployer)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/scripts/verify_integration.py", line 71, in deploy_contract
+    tx_hash = contract.constructor(*args).transact({"from": deployer})
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/web3/contract/contract.py", line 530, in constructor
+    return ContractConstructor(cls.w3, cls.abi, cls.bytecode, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/web3/contract/base_contract.py", line 1553, in __init__
+    self.data_in_transaction = self._encode_data_in_transaction(*args, **kwargs)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/eth_utils/decorators.py", line 28, in _wrapper
+    return self.method(obj, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/web3/contract/base_contract.py", line 1565, in _encode_data_in_transaction
+    arguments = get_normalized_abi_inputs(constructor_abi, *args, **kwargs)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/eth_utils/abi.py", line 498, in get_normalized_abi_inputs
+    raise TypeError(
+TypeError: Incorrect argument count. Expected '4', got '2'.
