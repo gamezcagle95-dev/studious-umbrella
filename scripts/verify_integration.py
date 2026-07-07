@@ -116,7 +116,7 @@ def perform_appraisal(engine, creator_acc, raw_data):
     valuation_usd = engine.calculate_valuation(metrics, raw_data)
     price = engine.usd_to_eit_wei(valuation_usd)
     params = AppraisalParams(data_hash=data_hash, price_eit_wei=price,
-                            ipfs_cid="QmTest123456789", creator_address=creator_acc, nonce=1)
+                            ipfsCID="QmTest123456789", creator_address=creator_acc, nonce=1)
     appraisal_result = engine.generate_appraisal_signature(params)
     return appraisal_result, valuation_usd, data_hash
 
@@ -162,7 +162,7 @@ def test_security_features(ctx: SecurityTestContext):
     huge_params = AppraisalParams(
         data_hash=huge_price_app["appraisal"]["dataHash"],
         price_eit_wei=huge_price_app["appraisal"]["price"],
-        ipfs_cid=huge_price_app["appraisal"]["ipfsCID"],
+        ipfsCID=huge_price_app["appraisal"]["ipfsCID"],
         creator_address=huge_price_app["appraisal"]["creator"],
         nonce=2
     )

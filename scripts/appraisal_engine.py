@@ -1,5 +1,6 @@
 """
 EPIPHANY APPRAISAL ENGINE - DATA ASSET VALUATION & SIGNING
+This module provides a deterministic valuation and cryptographic signing engine.
 """
 import os
 import json
@@ -14,7 +15,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Hardcoded conversion rate: 1 EIT = $0.10 USD
+# Hardcoded conversion rate: 1 EIT = -bash.10 USD
 # So 1 USD = 10 EIT tokens
 USD_TO_EIT_RATE = 10
 EIT_DECIMALS = 18
@@ -24,7 +25,10 @@ MAX_ENTROPY_THRESHOLD = 5.0  # Threshold for noise filtering (bits per character
 
 @dataclass
 class AppraisalMetrics:
-    """Container for the B*I*S*D valuation metrics."""
+    """
+    Container for the B*I*S*D valuation metrics.
+    Ensures structured passing of valuation parameters.
+    """
     base_cost: float          # B: Base Cost
     information_density: float # I: Information Density
     scarcity_metric: float     # S: Scarcity Metric
@@ -32,10 +36,13 @@ class AppraisalMetrics:
 
 @dataclass
 class AppraisalParams:
-    """Container for appraisal signature parameters to satisfy Pylint."""
+    """
+    Container for appraisal signature parameters to satisfy Pylint.
+    Groups parameters to comply with maximum argument count limits.
+    """
     data_hash: bytes
     price_eit_wei: int
-    ipfs_cid: str
+    ipfsCID: str # Standardized naming convention for IPFS Content Identifiers
     creator_address: str
     nonce: int
     expiry_seconds: int = 3600
@@ -43,8 +50,10 @@ class AppraisalParams:
 class AppraisalEngine:
     """
     Engine for calculating data asset value and generating cryptographic signatures.
+    Handles the core logic for the Epiphany marketplace valuation layer.
     """
     def __init__(self, appraiser_private_key, chain_id, contract_address):
+        """Initializes the appraisal engine with the appraiser's signing account."""
         # pylint: disable=no-value-for-parameter
         self.account = Account.from_key(appraiser_private_key)
         self.chain_id = chain_id
@@ -54,6 +63,7 @@ class AppraisalEngine:
     def calculate_entropy(data: str) -> float:
         """
         Calculates Shannon entropy of the input string to detect high-entropy noise.
+        Used as a guardrail to prevent valuation of random or garbage data.
         """
         if not data:
             return 0.0
@@ -63,7 +73,7 @@ class AppraisalEngine:
     def calculate_valuation(self, metrics: AppraisalMetrics, raw_data: str) -> float:
         """
         Calculates the final USD asset value using the formula: B * I * S * D.
-        Filters out high-entropy noise before calculation.
+        Filters out high-entropy noise before calculation to maintain protocol integrity.
         """
         entropy = self.calculate_entropy(raw_data)
 
@@ -82,6 +92,7 @@ class AppraisalEngine:
     def usd_to_eit_wei(self, usd_value: float) -> int:
         """
         Converts a USD valuation into EIT token units (Wei-equivalent, 10^18).
+        Ensures consistent precision across the Epiphany settlement layer.
         """
         eit_amount = usd_value * USD_TO_EIT_RATE
         return int(eit_amount * (10 ** EIT_DECIMALS))
@@ -89,10 +100,11 @@ class AppraisalEngine:
     def generate_appraisal_signature(self, params: AppraisalParams):
         """
         Generates an EIP-712 structured signature for the appraisal.
+        This signature is verified on-chain to authorize data asset purchases.
         """
         expiry = int(time.time()) + params.expiry_seconds
 
-        # EIP-712 Domain
+        # EIP-712 Domain configuration for the DataAssetRegistry
         domain_data = {
             "name": "DataAssetRegistry",
             "version": "1",
@@ -100,7 +112,7 @@ class AppraisalEngine:
             "verifyingContract": self.contract_address,
         }
 
-        # EIP-712 Types
+        # EIP-712 Types defining the Appraisal struct schema
         message_types = {
             "Appraisal": [
                 {"name": "dataHash", "type": "bytes32"},
@@ -112,17 +124,17 @@ class AppraisalEngine:
             ],
         }
 
-        # The Appraisal Payload
+        # The Appraisal Payload matching the EIP-712 struct definition
         appraisal_data = {
             "dataHash": params.data_hash,
             "price": params.price_eit_wei,
-            "ipfsCID": params.ipfs_cid,
+            "ipfsCID": params.ipfsCID,
             "nonce": params.nonce,
             "expiry": expiry,
             "creator": params.creator_address,
         }
 
-        # Encode and Sign
+        # Encode and Sign the appraisal data using the appraiser's private key
         signable_message = encode_typed_data(
             domain_data=domain_data,
             message_types=message_types,
@@ -139,22 +151,23 @@ class AppraisalEngine:
 def run_engine_example():
     """
     Demonstrates the full appraisal workflow with entropy guardrails.
+    Provides a reference implementation for off-chain valuation services.
     """
     print("🚀 Initializing Epiphany Appraisal Engine with Guardrails...")
 
-    # Configuration
+    # Configuration for the simulation environment
     p_key = os.getenv("APPRAISER_PRIVATE_KEY", "0x" + "9" * 64)
     c_id = int(os.getenv("CHAIN_ID", "1337"))
     c_addr = Web3.to_checksum_address(os.getenv("DATA_ASSET_REGISTRY_ADDRESS", "0x" + "a" * 40))
 
     engine = AppraisalEngine(p_key, c_id, c_addr)
 
-    # 1. Ingest Raw Data
+    # 1. Ingest Raw Data for forensic analysis
     raw_data = "Forensic analysis: Transaction 0xabc... reveals 4.2B unauthorized movement."
     d_hash = Web3.keccak(text=raw_data)
     print(f"✓ Data Ingested. Asset Hash: {d_hash.hex()}")
 
-    # 2. Calculate Metrics (B * I * S * D)
+    # 2. Calculate Metrics using the proprietary B * I * S * D model
     metrics = AppraisalMetrics(base_cost=100.0, information_density=1.8,
                               scarcity_metric=2.5, demand_vector=1.5)
 
@@ -162,21 +175,21 @@ def run_engine_example():
     price_eit_wei = engine.usd_to_eit_wei(valuation_usd)
 
     print(f"✓ Entropy Calculated: {engine.calculate_entropy(raw_data):.2f}")
-    print(f"✓ Valuation Calculated: ${valuation_usd:,.2f} USD")
+    print(f"✓ Valuation Calculated:  USD")
 
     if valuation_usd == 0:
         return
 
-    # 3. Generate Signed Appraisal
+    # 3. Generate Signed Appraisal for on-chain settlement
     creator = Web3.to_checksum_address("0x71C7656EC7ab88b098defB751B7401B5f6d147a3")
     params = AppraisalParams(data_hash=d_hash, price_eit_wei=price_eit_wei,
-                            ipfs_cid="QmPK1s3pNYsjnu7wT2L7ck5nS1...", creator_address=creator,
+                            ipfsCID="QmPK1s3pNYsjnu7wT2L7ck5nS1...", creator_address=creator,
                             nonce=int(time.time()))
 
     # pylint: disable=no-value-for-parameter
     result = engine.generate_appraisal_signature(params)
 
-    # Manual conversion for HexBytes
+    # Manual conversion for HexBytes to ensure JSON serializability
     ser_app = result["appraisal"].copy()
     ser_app["dataHash"] = "0x" + ser_app["dataHash"].hex()
     ser_res = {"appraisal": ser_app, "signature": result["signature"]}
