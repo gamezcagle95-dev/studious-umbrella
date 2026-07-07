@@ -12,9 +12,8 @@ import sys
 from dataclasses import dataclass
 from typing import List, Any
 from web3 import Web3
-from solcx import install_solc
+from solcx import compile_standard, install_solc
 from dotenv import load_dotenv
-from scripts.shared_compiler import get_compiled_contracts
 
 @dataclass
 class DeploymentConfig:
@@ -24,14 +23,6 @@ class DeploymentConfig:
     account: str
     pkey: str
     args: List[Any]
-
-@dataclass
-class LinkConfig:
-    """Container for linking parameters to reduce function argument count."""
-    ledger_address: str
-    registry_address: str
-    account: str
-    pkey: str
 
 load_dotenv()
 
@@ -87,44 +78,27 @@ def run_deployment_loop():
     registry_address = deploy_contract(w3, compiled_sol, registry_config)
     print(f"✅ REGISTRY DEPLOYED: {registry_address}")
 
-    # 3. Link Registry to Ledger
-    print("🔗 Linking Registry to Ledger...")
-    link_config = LinkConfig(
-        ledger_address=ledger_address,
-        registry_address=registry_address,
-        account=account_address,
-        pkey=private_key
-    )
-    link_tx(w3, compiled_sol, link_config)
-    print("✅ REGISTRY LINKED TO LEDGER")
-
     mock_deployment_output(ledger_address, registry_address)
 
 def compile_files():
     """
-    Wrapper for shared compilation logic.
+    Compiles Solidity source files using the solc standard JSON input.
     """
-    return get_compiled_contracts()
+    with open("src/contracts/ProvenanceLedger.sol", "r", encoding="utf-8") as f:
+        ledger_src = f.read()
+    with open("src/contracts/ProvenanceRegistry.sol", "r", encoding="utf-8") as f:
+        registry_src = f.read()
 
-def link_tx(w3, compiled_sol, config: LinkConfig):
-    """
-    Calls setRegistryAddress on the ProvenanceLedger contract.
-    """
-    abi = compiled_sol["contracts"]["ProvenanceLedger.sol"]["ProvenanceLedger"]["abi"]
-    ledger_contract = w3.eth.contract(address=config.ledger_address, abi=abi)
-
-    nonce = w3.eth.get_transaction_count(config.account)
-    tx = ledger_contract.functions.setRegistryAddress(config.registry_address).build_transaction({
-        "chainId": w3.eth.chain_id,
-        "gasPrice": w3.eth.gas_price,
-        "from": config.account,
-        "nonce": nonce,
-    })
-
-    signed_tx = w3.eth.account.sign_transaction(tx, private_key=config.pkey)
-    tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
-    w3.eth.wait_for_transaction_receipt(tx_hash)
-
+    return compile_standard({
+        "language": "Solidity",
+        "sources": {
+            "ProvenanceLedger.sol": {"content": ledger_src},
+            "ProvenanceRegistry.sol": {"content": registry_src}
+        },
+        "settings": {
+            "outputSelection": {"*": {"*": ["abi", "evm.bytecode.object"]}}
+        }
+    }, allow_paths=os.path.abspath("node_modules"))
 
 def deploy_contract(w3, compiled_sol, config: DeploymentConfig):
     """

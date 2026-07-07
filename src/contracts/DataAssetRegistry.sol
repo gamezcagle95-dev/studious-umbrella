@@ -1,27 +1,76 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+
+interface IProvenanceRegistry {
+    function mintDataNFT(address recipient, string calldata ipfsCID) external;
+}
 
 /**
  * @title DataAssetRegistry
- * @dev Handles the purchase of data assets using EIP-712 appraised signatures and EIT tokens.
- * Includes an on-chain circuit breaker and price sanity boundaries.
+ * @dev Manages the purchasing, unlocking, and anchoring of high-density training data.
+ * Settles payments in native EIT tokens and verifies EIP-712 structured appraisals.
  */
-interface IProvenanceRegistry {
-    function mintDataNFT(address recipient, string calldata ipfsCid) external returns (uint256);
-}
-
-contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
+contract DataAssetRegistry is AccessControl, EIP712 {
     using ECDSA for bytes32;
 
-    struct Appraisal {
-        bytes32 dataHash;
+    // Roles (Aligned with existing codebase configurations)
+    bytes32 public constant SENIOR_INVESTIGATOR_ROLE = keccak256("SENIOR_INVESTIGATOR_ROLE");
+    bytes32 public constant APPRAISER_ROLE = keccak256("APPRAISER_ROLE");
+
+    // EIP-712 Struct Type Hash
+    bytes32 public constant ASSET_APPRAISAL_TYPEHASH = keccak256(
+        "AssetAppraisal(bytes32 assetHash,uint256 price,string ipfsCID,uint256 nonce,uint256 expiry,address creator)"
+    );
+
+    // External dependencies
+    IERC20 public immutable paymentToken; // Epiphany Intelligence Token (EIT)
+    IProvenanceRegistry public immutable provenanceRegistry;
+
+    // Asset state structure
+    struct AssetDetails {
+        bytes32 assetHash;
+        uint256 price;
+        string ipfsCID;
+        address creator;
+        bool registered;
+    }
+
+    // Mappings
+    mapping(bytes32 => AssetDetails) public registeredAssets;
+    mapping(address => mapping(bytes32 => bool)) public accessGrants;
+    mapping(bytes32 => bool) public usedNonces; // Prevents appraisal replay attacks
+
+    // Circuit Breaker State Variables
+    bool public isPaused;
+    uint256 public maxPricePerTokenInEIT; // Sanity limit (maximum allowed EIT per token)
+
+    // Events
+    event AssetAppraisalRegistered(
+        bytes32 indexed assetHash,
+        uint256 price,
+        string ipfsCID,
+        address indexed creator
+    );
+    event AssetUnlocked(
+        bytes32 indexed assetHash,
+        address indexed buyer,
+        uint256 pricePaid,
+        string ipfsCID
+    );
+    event CircuitBreakerTriggered(
+        bytes32 indexed assetHash,
+        uint256 price,
+        uint256 estimatedTokens
+    );
+
+    // EIP-712 Mirror Struct
+    struct AssetAppraisal {
+        bytes32 assetHash;
         uint256 price;
         string ipfsCID;
         uint256 nonce;
@@ -29,88 +78,75 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
         address creator;
     }
 
-    bytes32 public constant APPRAISAL_TYPEHASH = keccak256(
-        "Appraisal(bytes32 dataHash,uint256 price,string ipfsCID,uint256 nonce,uint256 expiry,address creator)"
-    );
+    modifier whenNotPaused() {
+        require(!isPaused, "Circuit Breaker: Contract is currently paused");
+        _;
+    }
 
-    IERC20 public immutable eitToken;
-    IProvenanceRegistry public immutable provenanceRegistry;
+    constructor(
+        address _paymentToken,
+        address _provenanceRegistry,
+        address _seniorInvestigator,
+        uint256 _maxPricePerTokenInEIT
+    ) EIP712("DataAssetRegistry", "1") {
+        require(_paymentToken != address(0), "Invalid payment token");
+        require(_provenanceRegistry != address(0), "Invalid registry");
+        require(_seniorInvestigator != address(0), "Invalid investigator");
 
-    // Sanity boundaries (Circuit Breaker)
-    uint256 public maxPricePerAsset = 1_000_000 * 10**18; // Default 1M EIT tokens
-
-    mapping(address => bool) public isAppraiser;
-    mapping(bytes32 => bool) public usedAppraisals;
-    mapping(address => mapping(bytes32 => bool)) public accessGrants;
-    mapping(bytes32 => string) public assetCids;
-
-    event AssetUnlocked(bytes32 indexed dataHash, address indexed buyer, uint256 price);
-    event AppraiserStatusChanged(address indexed appraiser, bool status);
-    event MaxPriceUpdated(uint256 oldMax, uint256 newMax);
-
-    error InvalidSignature();
-    error AppraisalExpired();
-    error AppraisalAlreadyUsed();
-    error UnauthorizedAppraiser();
-    error TransferFailed();
-    error PriceExceedsSanityBoundary(uint256 requested, uint256 maxAllowed);
-
-    constructor(address _eitToken, address _provenanceRegistry)
-        EIP712("DataAssetRegistry", "1")
-        Ownable(msg.sender)
-    {
-        eitToken = IERC20(_eitToken);
+        paymentToken = IERC20(_paymentToken);
         provenanceRegistry = IProvenanceRegistry(_provenanceRegistry);
+        maxPricePerTokenInEIT = _maxPricePerTokenInEIT;
+
+        // Grant default admin and senior investigator roles to the coordinator
+        _grantRole(DEFAULT_ADMIN_ROLE, _seniorInvestigator);
+        _grantRole(SENIOR_INVESTIGATOR_ROLE, _seniorInvestigator);
     }
 
     /**
-     * @dev Emergency stop: Pauses all purchase transactions.
+     * @dev Allows an authorized Senior Investigator to manage approved appraisers.
      */
-    function setPaused(bool status) external onlyOwner {
-        if (status) {
-            _pause();
-        } else {
-            _unpause();
-        }
+    function authorizeAppraiser(address appraiser) external onlyRole(SENIOR_INVESTIGATOR_ROLE) {
+        _grantRole(APPRAISER_ROLE, appraiser);
+    }
+
+    function revokeAppraiser(address appraiser) external onlyRole(SENIOR_INVESTIGATOR_ROLE) {
+        _revokeRole(APPRAISER_ROLE, appraiser);
     }
 
     /**
-     * @dev Updates the global maximum price allowed per asset appraisal.
+     * @dev Admin recovery interface to pause/resume contract after anomalous price spike.
      */
-    function setMaxPricePerAsset(uint256 _maxPrice) external onlyOwner {
-        emit MaxPriceUpdated(maxPricePerAsset, _maxPrice);
-        maxPricePerAsset = _maxPrice;
+    function setPaused(bool _paused) external onlyRole(SENIOR_INVESTIGATOR_ROLE) {
+        isPaused = _paused;
     }
 
     /**
-     * @dev Authorizes or revokes an appraiser address.
+     * @dev Updates the circuit breaker threshold.
      */
-    function setAppraiser(address appraiser, bool status) external onlyOwner {
-        isAppraiser[appraiser] = status;
-        emit AppraiserStatusChanged(appraiser, status);
+    function setMaxPricePerToken(uint256 _newMax) external onlyRole(SENIOR_INVESTIGATOR_ROLE) {
+        maxPricePerTokenInEIT = _newMax;
     }
 
     /**
-     * @dev Unlocks a data asset by verifying an appraiser's signature and processing payment.
-     * Enforces the on-chain circuit breaker (price sanity check and pause state).
-     * @param appraisal The appraisal details.
-     * @param signature The EIP-712 signature from an authorized appraiser.
+     * @dev Purchases training access to an appraised data asset.
+     * Verifies EIP-712 appraisal metrics, transfers EIT tokens, and triggers NFT mint.
      */
-    function purchaseAsset(Appraisal calldata appraisal, bytes calldata signature)
-        external
-        nonReentrant
-        whenNotPaused
-    {
-        if (block.timestamp > appraisal.expiry) revert AppraisalExpired();
+    function purchaseAsset(
+        AssetAppraisal calldata appraisal,
+        bytes calldata signature,
+        uint256 estimatedTokens
+    ) external whenNotPaused {
+        // 1. Invariant & Replay Protection Checks
+        require(block.timestamp <= appraisal.expiry, "Appraisal signature has expired");
 
-        // Circuit Breaker: Enforce price sanity boundary
-        if (appraisal.price > maxPricePerAsset) {
-            revert PriceExceedsSanityBoundary(appraisal.price, maxPricePerAsset);
-        }
+        bytes32 nonceKey = keccak256(abi.encodePacked(appraisal.creator, appraisal.nonce));
+        require(!usedNonces[nonceKey], "Appraisal nonce has already been consumed");
+        usedNonces[nonceKey] = true;
 
+        // 2. Cryptographic Verification (EIP-712)
         bytes32 structHash = keccak256(abi.encode(
-            APPRAISAL_TYPEHASH,
-            appraisal.dataHash,
+            ASSET_APPRAISAL_TYPEHASH,
+            appraisal.assetHash,
             appraisal.price,
             keccak256(bytes(appraisal.ipfsCID)),
             appraisal.nonce,
@@ -118,28 +154,56 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
             appraisal.creator
         ));
 
-        bytes32 hash = _hashTypedDataV4(structHash);
-        address signer = hash.recover(signature);
+        bytes32 digest = _hashTypedDataV4(structHash);
+        address recoveredSigner = digest.recover(signature);
+        require(hasRole(APPRAISER_ROLE, recoveredSigner), "Invalid signature: Appraiser not authorized");
 
-        if (!isAppraiser[signer]) revert UnauthorizedAppraiser();
-
-        // Unique ID for the appraisal to prevent replay attacks
-        bytes32 appraisalId = keccak256(abi.encode(appraisal.dataHash, appraisal.nonce));
-        if (usedAppraisals[appraisalId]) revert AppraisalAlreadyUsed();
-        usedAppraisals[appraisalId] = true;
-
-        // Execute payment: Buyer -> Creator
-        if (!eitToken.transferFrom(msg.sender, appraisal.creator, appraisal.price)) {
-            revert TransferFailed();
+        // 3. Dynamic Appraisal Sanity Check (The Circuit Breaker / Kill-Switch)
+        if (estimatedTokens > 0) {
+            uint256 pricePerToken = (appraisal.price * 10**18) / estimatedTokens;
+            if (pricePerToken > maxPricePerTokenInEIT) {
+                isPaused = true;
+                emit CircuitBreakerTriggered(appraisal.assetHash, appraisal.price, estimatedTokens);
+                revert("Anomaly Detected: Price-per-token exceeds limit. Circuit breaker triggered.");
+            }
         }
 
-        // Grant access and store metadata
-        accessGrants[msg.sender][appraisal.dataHash] = true;
-        assetCids[appraisal.dataHash] = appraisal.ipfsCID;
+        // 4. Register Asset (Run initial anchoring if first-time purchase)
+        AssetDetails storage asset = registeredAssets[appraisal.assetHash];
+        if (!asset.registered) {
+            asset.assetHash = appraisal.assetHash;
+            asset.price = appraisal.price;
+            asset.ipfsCID = appraisal.ipfsCID;
+            asset.creator = appraisal.creator;
+            asset.registered = true;
 
-        // Mint Data NFT via ProvenanceRegistry
+            emit AssetAppraisalRegistered(
+                appraisal.assetHash,
+                appraisal.price,
+                appraisal.ipfsCID,
+                appraisal.creator
+            );
+        } else {
+            // Confirm the pricing parameters have not been altered
+            require(asset.price == appraisal.price, "Price mismatch: Asset already registered with a different rate");
+        }
+
+        // 5. Token Settlement (Checks-Effects-Interactions)
+        // Pull EIT ERC-20 tokens from the buyer directly to the creator
+        bool success = paymentToken.transferFrom(msg.sender, appraisal.creator, appraisal.price);
+        require(success, "EIT token settlement transfer failed");
+
+        // 6. Cross-Contract Call to Mint Data NFT License (Option B)
         provenanceRegistry.mintDataNFT(msg.sender, appraisal.ipfsCID);
 
-        emit AssetUnlocked(appraisal.dataHash, msg.sender, appraisal.price);
+        // 7. Update Query-Access Mapping
+        accessGrants[msg.sender][appraisal.assetHash] = true;
+
+        emit AssetUnlocked(
+            appraisal.assetHash,
+            msg.sender,
+            appraisal.price,
+            appraisal.ipfsCID
+        );
     }
 }

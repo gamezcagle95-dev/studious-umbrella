@@ -12,4 +12,9 @@ private_key.json
 # Raw training interaction datasets and system weights
 data/datasets/
 data/weights/
-artifacts/
+
+# Protocol artifacts and proof packets
+artifacts/contracts/
+artifacts/proof_packet.json
+artifacts/proofs/
+artifacts/trust_report.md
