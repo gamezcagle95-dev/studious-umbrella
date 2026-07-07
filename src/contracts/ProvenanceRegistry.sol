@@ -17,7 +17,7 @@ contract ProvenanceRegistry is ERC721URIStorage {
     error InvalidAddress();
 
     // Verification logging
-    event DataNFTMinted(uint256 indexed tokenId, string ipfsCid, address indexed creator);
+    event DataNFTMinted(uint256 indexed tokenId, string ipfsCID, address indexed creator);
 
     modifier onlyLedger() {
         if (msg.sender != ledgerAddress) revert OnlyLedgerAllowed();
@@ -37,10 +37,10 @@ contract ProvenanceRegistry is ERC721URIStorage {
      * @dev Mints a secure token pointer linking directly to a verified off-chain dataset.
      * Can only be called by the coupled ledger contract to enforce programmatic royalty distribution.
      * @param recipient The destination wallet address receiving data token ownership rights.
-     * @param ipfsCid The immutable IPFS Content Identifier hash pointing to the raw encrypted data file.
+     * @param ipfsCID The immutable IPFS Content Identifier hash pointing to the raw encrypted data file.
      * @return The unique uint256 ID of the newly minted cryptographic data token.
      */
-    function mintDataNFT(address recipient, string calldata ipfsCid)
+    function mintDataNFT(address recipient, string calldata ipfsCID)
         external
         onlyLedger
         returns (uint256)
@@ -50,10 +50,10 @@ contract ProvenanceRegistry is ERC721URIStorage {
         tokenCount++;
         uint256 newTokenId = tokenCount;
 
-        _mint(recipient, newTokenId);
-        _setTokenURI(newTokenId, ipfsCid);
+        _safeMint(recipient, newTokenId);
+        _setTokenURI(newTokenId, ipfsCID);
 
-        emit DataNFTMinted(newTokenId, ipfsCid, recipient);
+        emit DataNFTMinted(newTokenId, ipfsCID, recipient);
         return newTokenId;
     }
 }
