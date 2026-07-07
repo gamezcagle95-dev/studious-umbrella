@@ -8,6 +8,13 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
+interface IProvenanceRegistry {
+    /**
+     * @dev Interface for minting Data NFTs.
+     */
+    function mintDataNFT(address recipient, string calldata ipfsCID) external returns (uint256);
+}
+
 /**
  * @title ProvenanceLedger
  * @dev Core settlement layer for the Epiphany Investigative Protocol.
@@ -17,6 +24,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
     using ECDSA for bytes32;
 
     address public seniorInvestigator;
+    address public registryAddress;
     uint64 public bountyCount;
     uint256 public constant RECOVERY_FEE_BPS = 500; // 5% performance reward fee
 
@@ -28,23 +36,31 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
     error OnlySeniorInvestigator();
     error NoCreditsToSecure();
     error EtherTransferFailed();
+    error InvalidAddress();
 
+    /**
+     * @dev Structure for intelligence reports.
+     */
     struct IntelligenceReport {
         uint128 identifiedLaunderedValue;
         address primaryInvestigator;
         bool isVerified;
         bool feeClaimed;
+        string ipfsCID;
     }
 
     mapping(bytes32 => IntelligenceReport) public intelligenceLedger;
     mapping(address => uint256) public claimableCredits;
 
+    /**
+     * @dev Structure for bounties.
+     */
     struct Bounty {
         bytes32 targetHash;
         address creator;
         uint128 rewardAmount;
         bool isClaimed;
-        string encryptedCid;
+        string encryptedCID;
     }
 
     mapping(uint256 => Bounty) public bounties;
@@ -54,24 +70,33 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
     event RewardDistributed(address indexed investigator, uint256 amount);
     event BountyTriggered(uint256 indexed bountyId, address indexed solver);
 
+    /**
+     * @dev Initializes the ledger and token settings.
+     */
     constructor(address initialOwner)
         ERC20("Epiphany Intelligence Token", "EIT")
         ERC20Permit("Epiphany Ledger")
     {
+        if (initialOwner == address(0)) revert InvalidAddress();
         seniorInvestigator = initialOwner;
     }
 
     /**
      * @dev Step 1: Anchor Forensic Findings onto the state machine.
      */
-    function anchorIntelligenceReport(bytes32 reportId, uint128 launderedValue) external whenNotPaused {
+    function anchorIntelligenceReport(
+        bytes32 reportId,
+        uint128 launderedValue,
+        string calldata ipfsCID
+    ) external whenNotPaused {
         if (intelligenceLedger[reportId].primaryInvestigator != address(0)) revert ReportAlreadyAnchored();
 
         intelligenceLedger[reportId] = IntelligenceReport({
             identifiedLaunderedValue: launderedValue,
             primaryInvestigator: msg.sender,
             isVerified: false,
-            feeClaimed: false
+            feeClaimed: false,
+            ipfsCID: ipfsCID
         });
 
         emit ProofAnchored(reportId, launderedValue, msg.sender);
@@ -90,10 +115,27 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         uint256 reward = (report.identifiedLaunderedValue * RECOVERY_FEE_BPS) / 10000;
         claimableCredits[report.primaryInvestigator] += reward;
 
+        // Mint Data NFT if registry is linked
+        if (registryAddress != address(0)) {
+            IProvenanceRegistry(registryAddress).mintDataNFT(report.primaryInvestigator, report.ipfsCID);
+        }
+
         emit IntelligenceVerified(reportId, msg.sender);
     }
 
-    function triggerBounty(uint256 bountyId, string calldata submissionCid) external {
+    /**
+     * @dev Links the ProvenanceRegistry to this ledger.
+     */
+    function setRegistryAddress(address _registryAddress) external {
+        if (msg.sender != seniorInvestigator) revert OnlySeniorInvestigator();
+        if (_registryAddress == address(0)) revert InvalidAddress();
+        registryAddress = _registryAddress;
+    }
+
+    /**
+     * @dev Triggers a bounty payout for a submission.
+     */
+    function triggerBounty(uint256 bountyId, string calldata submissionCID) external {
         Bounty storage bounty = bounties[bountyId];
         if (bounty.isClaimed) revert BountyAlreadyClaimed();
 
@@ -103,13 +145,15 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         emit BountyTriggered(bountyId, msg.sender);
     }
 
+    /**
+     * @dev Claims earned credits as EIT tokens.
+     */
     function claimCredits() external nonReentrant whenNotPaused {
         _secureAssets(msg.sender);
     }
 
     /**
      * @dev Meta-transaction support for gasless asset securing using EIP-712.
-     * Allows a relayer to execute the state change if the investigator provides a valid signature.
      */
     function metaSecureAssets(address investigator, bytes memory signature) external nonReentrant whenNotPaused {
         bytes32 structHash = keccak256(abi.encode(SECURE_TYPEHASH, investigator));
@@ -121,6 +165,9 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         _secureAssets(investigator);
     }
 
+    /**
+     * @dev Internal asset securing logic.
+     */
     function _secureAssets(address investigator) internal {
         uint256 amount = claimableCredits[investigator];
         if (amount == 0) revert NoCreditsToSecure();
@@ -132,6 +179,9 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         emit RewardDistributed(investigator, amount);
     }
 
+    /**
+     * @dev Reclaims native assets trapped in the contract.
+     */
     function reclaimNativeAssets() external {
         if (msg.sender != seniorInvestigator) revert OnlySeniorInvestigator();
         uint256 balance = address(this).balance;

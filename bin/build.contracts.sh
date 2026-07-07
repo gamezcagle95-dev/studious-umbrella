@@ -13,16 +13,18 @@ ARTIFACT_DIR="$BASE_DIR/$TIMESTAMP"
 echo "⚙️  Building contract target pipelines..."
 
 # Establish strict artifact standard directory layouts
-mkdir -p "$ARTIFACT_DIR/abi"
-mkdir -p "$ARTIFACT_DIR/bytecode"
+mkdir -p "$ARTIFACT_DIR"
 
-# Copy pre-configured contract schemas if available
-if ls src/contracts/*.json >/dev/null 2>&1; then
-    cp src/contracts/*.json "$ARTIFACT_DIR/abi/"
-fi
+# Compile contracts using Python script and output to the timestamped directory
+python3 scripts/generate_artifacts.py
+
+# Move generated artifacts to the timestamped directory
+mv artifacts/ProvenanceLedger.json "$ARTIFACT_DIR/ProvenanceLedger.json"
+mv artifacts/ProvenanceRegistry.json "$ARTIFACT_DIR/ProvenanceRegistry.json"
+mv artifacts/DataAssetRegistry.json "$ARTIFACT_DIR/DataAssetRegistry.json"
 
 # Populate standardized build metadata manifest
-cat <<EOF > "$ARTIFACT_DIR/build-info.json"
+cat <<MANIFEST_EOF > "$ARTIFACT_DIR/build-info.json"
 {
   "target": "$TARGET",
   "timestamp": "$TIMESTAMP",
@@ -30,7 +32,7 @@ cat <<EOF > "$ARTIFACT_DIR/build-info.json"
   "compiler": "solc-0.8.26",
   "profile": "Epiphany Protocol"
 }
-EOF
+MANIFEST_EOF
 
 # Update rolling 'latest' shortcut via relative symlink
 echo "🔗 Synchronizing 'latest' build reference pointer..."
