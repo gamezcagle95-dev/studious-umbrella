@@ -26,15 +26,15 @@ def load_compiled_artifact(contract_name: str) -> Dict[str, Any]:
     """
     artifact_path = os.path.join("artifacts/contracts/latest", f"{contract_name}.json")
     if not os.path.exists(artifact_path):
-        print(f"[Wurk] Error: Compiled artifact not found at {artifact_path}.", file=sys.stderr)
-        print("[Wurk] Please run 'bin/build.contracts.sh' before deploying.", file=sys.stderr)
+        print(f"[Epiphany] Error: Compiled artifact not found at {artifact_path}.", file=sys.stderr)
+        print("[Epiphany] Please run 'bin/build.contracts.sh' before deploying.", file=sys.stderr)
         sys.exit(1)
 
     try:
         with open(artifact_path, "r", encoding="utf-8") as file_handle:
             return json.load(file_handle)
     except (json.JSONDecodeError, IOError) as err:
-        print(f"[Wurk] Error reading compiler artifact: {err}", file=sys.stderr)
+        print(f"[Epiphany] Error reading compiler artifact: {err}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -73,10 +73,10 @@ def deploy_contract(w3: Web3, account: Any, pkey: str, name: str, args: list) ->
 
     signed_tx = w3.eth.account.sign_transaction(tx, private_key=pkey)
     tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
-    print(f"[Wurk] Transmitted transaction for {name}. Hash: {tx_hash.hex()}")
+    print(f"[Epiphany] Transmitted transaction for {name}. Hash: {tx_hash.hex()}")
 
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-    print(f"[Wurk] {name} deployed successfully to: {receipt.contractAddress}")
+    print(f"[Epiphany] {name} deployed successfully to: {receipt.contractAddress}")
     return receipt.contractAddress
 
 
@@ -86,7 +86,7 @@ def deploy_and_permission_contracts() -> Dict[str, str]:
     Executes the sequential broadcast of smart contract bytecodes,
     and configures on-chain AccessControl permissions for minters.
     """
-    print("[Wurk] Initializing on-chain deployment loop...")
+    print("[Epiphany] Initializing on-chain deployment loop...")
 
     rpc_url = os.getenv("RPC_URL", "http://127.0.0.1:8545")
     deployer_pkey = os.getenv("DEPLOYER_PRIVATE_KEY") or os.getenv("PRIVATE_KEY")
@@ -104,11 +104,11 @@ def deploy_and_permission_contracts() -> Dict[str, str]:
 
     w3 = Web3(Web3.HTTPProvider(rpc_url))
     if not w3.is_connected():
-        print(f"[Wurk] Error: Failed to connect to RPC node at {rpc_url}", file=sys.stderr)
+        print(f"[Epiphany] Error: Failed to connect to RPC node at {rpc_url}", file=sys.stderr)
         sys.exit(1)
 
     deployer = w3.eth.account.from_key(deployer_pkey)
-    print(f"[Wurk] Connected to Chain ID: {w3.eth.chain_id}. Deployer: {deployer.address}")
+    print(f"[Epiphany] Connected to Chain ID: {w3.eth.chain_id}. Deployer: {deployer.address}")
 
     # 1. Deploy ProvenanceLedger
     ledger_addr = deploy_contract(
@@ -124,7 +124,7 @@ def deploy_and_permission_contracts() -> Dict[str, str]:
     clearing_addr = deploy_contract(w3, deployer, deployer_pkey, "DataAssetRegistry", args)
 
     # 4. Grant MINTER_ROLE
-    print("[Wurk] Configuring dynamic AccessControl roles...")
+    print("[Epiphany] Configuring dynamic AccessControl roles...")
     reg_artifact = load_compiled_artifact("ProvenanceRegistry")
     registry = w3.eth.contract(address=reg_addr, abi=reg_artifact["abi"])
     minter_role = Web3.keccak(text="MINTER_ROLE")
@@ -138,7 +138,7 @@ def deploy_and_permission_contracts() -> Dict[str, str]:
     signed_tx = w3.eth.account.sign_transaction(tx, private_key=deployer_pkey)
     tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
     w3.eth.wait_for_transaction_receipt(tx_hash)
-    print(f"[Wurk] Granted MINTER_ROLE. Hash: {tx_hash.hex()}")
+    print(f"[Epiphany] Granted MINTER_ROLE. Hash: {tx_hash.hex()}")
 
     save_settlement_manifest(ledger_addr, reg_addr, clearing_addr)
     return {

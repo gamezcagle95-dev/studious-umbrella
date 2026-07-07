@@ -17,7 +17,7 @@ mkdir -p "$ARTIFACT_DIR/abi"
 mkdir -p "$ARTIFACT_DIR/bytecode"
 
 # Execute programmatic compilation via Python helper
-python3 scripts/generate_artifacts.py
+PYTHONPATH=. python3 scripts/generate_artifacts.py
 
 # Move newly generated artifacts to versioned directory for archiving
 # Note: scripts/generate_artifacts.py writes to artifacts/contracts/latest/

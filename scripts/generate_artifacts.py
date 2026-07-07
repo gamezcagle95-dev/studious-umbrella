@@ -14,7 +14,7 @@ def generate_artifacts():
     if not get_installed_solc_versions():
         install_solc("0.8.26")
 
-    print("[Wurk] Compiling contracts...")
+    print("[Epiphany] Compiling contracts...")
     compiled_sol = get_compiled_contracts()
 
     # Define the standardized output directory
@@ -39,7 +39,7 @@ def generate_artifacts():
         artifact_path = os.path.join(output_dir, f"{contract_name}.json")
         with open(artifact_path, "w", encoding="utf-8") as f:
             json.dump(artifact, f, indent=2)
-        print(f"[Wurk] Artifact generated: {artifact_path}")
+        print(f"[Epiphany] Artifact generated: {artifact_path}")
 
 if __name__ == "__main__":
     generate_artifacts()

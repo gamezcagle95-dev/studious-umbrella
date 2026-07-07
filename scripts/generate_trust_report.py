@@ -159,7 +159,7 @@ def run_pylint_audit(directory_path: str, ignore_patterns: List[str]) -> float:
         if match:
             return float(match.group(1))
     except Exception as err: # pylint: disable=broad-exception-caught
-        print(f"[Wurk] Warning: Failed to execute pylint programmatically: {err}", file=sys.stderr)
+        print(f"[Epiphany] Warning: Failed to execute pylint programmatically: {err}", file=sys.stderr)
 
     return 0.0
 
@@ -241,10 +241,10 @@ def main() -> None:
     parser.add_argument("--output", default="artifacts/trust_report.md", help="Output path")
     args = parser.parse_args()
 
-    print(f"[Wurk] Initiating Forensic Audit on directory: {args.dir_path}...")
+    print(f"[Epiphany] Initiating Forensic Audit on directory: {args.dir_path}...")
 
     if not os.path.exists(args.dir_path):
-        print(f"[Wurk] Error: Directory '{args.dir_path}' does not exist.", file=sys.stderr)
+        print(f"[Epiphany] Error: Directory '{args.dir_path}' does not exist.", file=sys.stderr)
         sys.exit(1)
 
     ignore_patterns = load_gitignore_patterns(args.dir_path)
@@ -253,7 +253,7 @@ def main() -> None:
     pylint_score = run_pylint_audit(args.dir_path, ignore_patterns)
 
     saved_path = generate_report(metrics, code_hash, pylint_score, args.output)
-    print(f"[Wurk] Trust Report successfully generated: {saved_path}")
+    print(f"[Epiphany] Trust Report successfully generated: {saved_path}")
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
  * Includes an on-chain circuit breaker and price sanity boundaries.
  */
 interface IProvenanceRegistry {
-    function mintDataNFT(address recipient, string calldata ipfsCid) external returns (uint256);
+    function mintDataNFT(address recipient, string calldata ipfsCID) external returns (uint256);
 }
 
 contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
