@@ -1,7 +1,8 @@
 """
-EPIPHANY INTEGRATION VERIFIER - EIT ROYALTY ROUTING SIMULATION
+End-to-end integration verification for the Epiphany Protocol stack.
+Tests contract deployment, appraisal engine signatures, and settlement logic.
 """
-# pylint: disable=no-value-for-parameter
+
 import os
 import sys
 from dataclasses import dataclass
@@ -10,24 +11,21 @@ from web3 import Web3
 from eth_account import Account
 import solcx
 from scripts.appraisal_engine import AppraisalEngine, AppraisalMetrics, AppraisalParams
-
-# ==============================================================================
-# EPIPHANY INTEGRATION VERIFIER - END-TO-END SYSTEM TEST
-# ==============================================================================
-
-@dataclass
-class AuthConfig:
-    """Container for authorization configuration."""
-    deployer: str
-    appraiser_addr: str
-    buyer_acc: str
+from scripts.shared_compiler import get_compiled_contracts
 
 @dataclass
 class ProtocolStack:
-    """Container for deployed contracts."""
+    """Container for deployed protocol contract instances."""
     ledger: Any
     registry: Any
     dar: Any
+
+@dataclass
+class AuthConfig:
+    """Container for authorization test parameters."""
+    deployer: str
+    appraiser_addr: str
+    buyer_acc: str
 
 @dataclass
 class SecurityTestContext:
@@ -37,33 +35,6 @@ class SecurityTestContext:
     creator_acc: str
     buyer_acc: str
     deployer: str
-
-def compile_contract(file_path, contract_name, node_modules_path):
-    """Compiles a Solidity contract with OpenZeppelin remappings."""
-    with open(file_path, "r", encoding="utf-8") as f:
-        source = f.read()
-
-    settings = {
-        "outputSelection": {"*": {"*": ["abi", "evm.bytecode.object"]}},
-        "remappings": [
-            f"@openzeppelin/={node_modules_path}/@openzeppelin/"
-        ]
-    }
-
-    compiled = solcx.compile_standard({
-        "language": "Solidity",
-        "sources": {os.path.basename(file_path): {"content": source}},
-        "settings": settings
-    }, allow_paths=node_modules_path)
-
-    if "errors" in compiled:
-        for error in compiled["errors"]:
-            if error["severity"] == "error":
-                print(f"❌ Compilation Error: {error['message']}")
-        if any(e["severity"] == "error" for e in compiled["errors"]):
-            sys.exit(1)
-
-    return compiled["contracts"][os.path.basename(file_path)][contract_name]
 
 def deploy_contract(w3, data, args, deployer):
     """Deploys a contract and returns the contract instance."""
@@ -75,12 +46,11 @@ def deploy_contract(w3, data, args, deployer):
 def setup_protocol_stack(w3, deployer, node_modules_path):
     """Compiles and deploys the full protocol contract stack."""
     print("⏳ Compiling contracts...")
-    ledger_data = compile_contract("src/contracts/ProvenanceLedger.sol",
-                                 "ProvenanceLedger", node_modules_path)
-    registry_data = compile_contract("src/contracts/ProvenanceRegistry.sol",
-                                   "ProvenanceRegistry", node_modules_path)
-    dar_data = compile_contract("src/contracts/DataAssetRegistry.sol",
-                              "DataAssetRegistry", node_modules_path)
+    compiled_sol = get_compiled_contracts(node_modules_path)
+
+    ledger_data = compiled_sol["contracts"]["ProvenanceLedger.sol"]["ProvenanceLedger"]
+    registry_data = compiled_sol["contracts"]["ProvenanceRegistry.sol"]["ProvenanceRegistry"]
+    dar_data = compiled_sol["contracts"]["DataAssetRegistry.sol"]["DataAssetRegistry"]
 
     print("⏳ Deploying Protocol Stack...")
     ledger = deploy_contract(w3, ledger_data, [deployer], deployer)
@@ -141,6 +111,7 @@ def setup_test_env():
     w3 = Web3(Web3.EthereumTesterProvider())
     # pylint: disable=unbalanced-tuple-unpacking
     deployer, creator_acc, buyer_acc = w3.eth.accounts[0:3]
+    # pylint: disable=no-value-for-parameter
     app_acc = Account.create()
 
     if "0.8.26" not in [str(v) for v in solcx.get_installed_solc_versions()]:
@@ -206,11 +177,13 @@ def run_royalty_routing_simulation(w3, stack, appraisal_result, buyer_acc):
     print(f"✅ Settlement Successful! Hash: {receipt.transactionHash.hex()}")
 
     # Verify Transfer event
+    # pylint: disable=no-value-for-parameter
     logs = stack.ledger.events.Transfer().process_receipt(receipt)
     if any(log['args']['to'] == app_res["creator"] for log in logs):
         print(f"✓ Royalty routed correctly to creator: {app_res['creator']}")
 
     print("\n🔄 Phase 3: Minter Delegation...")
+    # pylint: disable=no-value-for-parameter
     nft_logs = stack.registry.events.DataNFTMinted().process_receipt(receipt)
     if any(log['args']['creator'] == buyer_acc for log in nft_logs):
         print(f"✓ Data NFT minted successfully for buyer: {buyer_acc}")
