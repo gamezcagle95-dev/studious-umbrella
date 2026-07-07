@@ -14,6 +14,8 @@ def get_compiled_contracts():
         ledger_src = f.read()
     with open("src/contracts/ProvenanceRegistry.sol", "r", encoding="utf-8") as f:
         registry_src = f.read()
+    with open("src/contracts/DataAssetRegistry.sol", "r", encoding="utf-8") as f:
+        data_asset_src = f.read()
 
     node_modules_path = os.path.abspath("node_modules")
 
@@ -21,7 +23,8 @@ def get_compiled_contracts():
         "language": "Solidity",
         "sources": {
             "ProvenanceLedger.sol": {"content": ledger_src},
-            "ProvenanceRegistry.sol": {"content": registry_src}
+            "ProvenanceRegistry.sol": {"content": registry_src},
+            "DataAssetRegistry.sol": {"content": data_asset_src}
         },
         "settings": {
             "remappings": [

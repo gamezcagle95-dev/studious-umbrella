@@ -16,13 +16,33 @@ echo "⚙️  Building contract target pipelines..."
 mkdir -p "$ARTIFACT_DIR/abi"
 mkdir -p "$ARTIFACT_DIR/bytecode"
 
-# Copy pre-configured contract schemas if available
-if ls src/contracts/*.json >/dev/null 2>&1; then
-    cp src/contracts/*.json "$ARTIFACT_DIR/abi/"
+# Execute programmatic compilation via Python helper
+python3 scripts/generate_artifacts.py
+
+# Move newly generated artifacts to versioned directory for archiving
+# Note: scripts/generate_artifacts.py writes to artifacts/contracts/latest/
+# We want to keep latest as a symlink to the timestamped directory.
+# So we move the files from latest (if it's a real dir) or just let generate_artifacts
+# handle it and we symlink the timestamped one.
+
+# Let's refine the strategy:
+# 1. generate_artifacts writes to artifacts/contracts/latest (if it's a dir)
+# 2. We move artifacts/contracts/latest contents to ARTIFACT_DIR
+# 3. We recreate the symlink
+
+if [ -d "$BASE_DIR/latest" ] && [ ! -L "$BASE_DIR/latest" ]; then
+    mv "$BASE_DIR/latest/"* "$ARTIFACT_DIR/"
+    rmdir "$BASE_DIR/latest"
+else
+    # If latest is already a symlink, generate_artifacts followed the link
+    # or created a new dir. If it created a new dir, move it.
+    if [ -d "$BASE_DIR/latest" ]; then
+         cp -r "$BASE_DIR/latest/." "$ARTIFACT_DIR/"
+    fi
 fi
 
 # Populate standardized build metadata manifest
-cat <<EOF > "$ARTIFACT_DIR/build-info.json"
+cat <<metadata > "$ARTIFACT_DIR/build-info.json"
 {
   "target": "$TARGET",
   "timestamp": "$TIMESTAMP",
@@ -30,7 +50,7 @@ cat <<EOF > "$ARTIFACT_DIR/build-info.json"
   "compiler": "solc-0.8.26",
   "profile": "Epiphany Protocol"
 }
-EOF
+metadata
 
 # Update rolling 'latest' shortcut via relative symlink
 echo "🔗 Synchronizing 'latest' build reference pointer..."

@@ -85,7 +85,9 @@ def setup_protocol_stack(w3, deployer, node_modules_path):
     print("⏳ Deploying Protocol Stack...")
     ledger = deploy_contract(w3, ledger_data, [deployer], deployer)
     registry = deploy_contract(w3, registry_data, [ledger.address], deployer)
-    dar = deploy_contract(w3, dar_data, [ledger.address, registry.address], deployer)
+    dar = deploy_contract(
+        w3, dar_data, [ledger.address, registry.address, deployer, 1000000 * 10**18], deployer
+    )
 
     return ProtocolStack(ledger, registry, dar)
 

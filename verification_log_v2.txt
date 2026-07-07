@@ -1,0 +1,41 @@
+/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/eth_utils/functional.py:49: UserWarning: The log with transaction hash: HexBytes('0x1e74a6bc6dde6a6cb4d19e5d0bf61fa7d31ff6af6b167f106b97aa748625192e') and logIndex: 1 encountered the following error during processing: LogTopicError(Expected 2 log topics.  Got 3). It has been discarded.
+  return callback(fn(*args, **kwargs))
+/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/eth_utils/functional.py:49: UserWarning: The log with transaction hash: HexBytes('0x1e74a6bc6dde6a6cb4d19e5d0bf61fa7d31ff6af6b167f106b97aa748625192e') and logIndex: 2 encountered the following error during processing: MismatchedABI(The event signature did not match the provided ABI). It has been discarded.
+  return callback(fn(*args, **kwargs))
+/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/eth_utils/functional.py:49: UserWarning: The log with transaction hash: HexBytes('0x1e74a6bc6dde6a6cb4d19e5d0bf61fa7d31ff6af6b167f106b97aa748625192e') and logIndex: 3 encountered the following error during processing: MismatchedABI(The event signature did not match the provided ABI). It has been discarded.
+  return callback(fn(*args, **kwargs))
+/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/eth_utils/functional.py:49: UserWarning: The log with transaction hash: HexBytes('0x1e74a6bc6dde6a6cb4d19e5d0bf61fa7d31ff6af6b167f106b97aa748625192e') and logIndex: 4 encountered the following error during processing: MismatchedABI(The event signature did not match the provided ABI). It has been discarded.
+  return callback(fn(*args, **kwargs))
+/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/eth_utils/functional.py:49: UserWarning: The log with transaction hash: HexBytes('0x1e74a6bc6dde6a6cb4d19e5d0bf61fa7d31ff6af6b167f106b97aa748625192e') and logIndex: 0 encountered the following error during processing: MismatchedABI(The event signature did not match the provided ABI). It has been discarded.
+  return callback(fn(*args, **kwargs))
+/home/jules/.pyenv/versions/3.12.13/lib/python3.12/site-packages/eth_utils/functional.py:49: UserWarning: The log with transaction hash: HexBytes('0x1e74a6bc6dde6a6cb4d19e5d0bf61fa7d31ff6af6b167f106b97aa748625192e') and logIndex: 1 encountered the following error during processing: MismatchedABI(The event signature did not match the provided ABI). It has been discarded.
+  return callback(fn(*args, **kwargs))
+🧪 Starting End-to-End Integration Verification...
+⏳ Compiling contracts...
+⏳ Deploying Protocol Stack...
+⏳ Configuring roles and authorizations...
+✓ Buyer funded with 50000.0 EIT tokens.
+
+⏳ Running Appraisal Engine...
+✓ Appraisal signed. Price: 1800.0 USD
+
+🔄 Phase 1: Token Authorization...
+✅ EIT Approve Successful! Hash: 6b8a53a8376eae06ee9892e78d36e8ae65361eee61948325978ea752e284e7ea
+
+🔄 Phase 2: Settlement Transfer...
+✅ Settlement Successful! Hash: 1e74a6bc6dde6a6cb4d19e5d0bf61fa7d31ff6af6b167f106b97aa748625192e
+✓ Royalty routed correctly to creator: 0x2B5AD5c4795c026514f8317c7a215E218DcCD6cF
+
+🔄 Phase 3: Minter Delegation...
+✓ Data NFT minted successfully for buyer: 0x6813Eb9362372EEF6200f3b1dbC3f819671cBA69
+⏳ Verifying outcomes...
+✓ Access Grant: True, NFT Balance: 1
+✓ Creator EIT Balance: 18000.0 tokens
+✓ End-to-end flow verified.
+
+🛡️ Testing Security Features...
+⚠️ Warning: High-entropy noise detected (6.28). Rejecting appraisal.
+✅ Off-chain guardrail rejected noise successfully.
+✅ On-chain circuit breaker blocked huge price successfully.
+
+✨ INTEGRATION AND SECURITY VERIFIED SUCCESSFULLY ✨
