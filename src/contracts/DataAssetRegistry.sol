@@ -61,12 +61,17 @@ contract DataAssetRegistry is AccessControl, Pausable, ReentrancyGuard, EIP712 {
     event MaxPriceUpdated(uint256 newMaxPrice);
 
     /**
+     * @dev Error for invalid input addresses.
+     */
+    error InvalidAddress();
+
+    /**
      * @dev Initializes the registry with token and registry dependencies.
      */
     constructor(address _eitToken, address _provenanceRegistry)
         EIP712("DataAssetRegistry", "1")
     {
-        if (_eitToken == address(0) || _provenanceRegistry == address(0)) revert("Invalid address");
+        if (_eitToken == address(0) || _provenanceRegistry == address(0)) revert InvalidAddress();
         eitToken = IERC20(_eitToken);
         provenanceRegistry = IProvenanceRegistry(_provenanceRegistry);
 
@@ -80,6 +85,7 @@ contract DataAssetRegistry is AccessControl, Pausable, ReentrancyGuard, EIP712 {
      * @dev Authorizes or revokes an appraiser address.
      */
     function setAppraiser(address appraiser, bool status) external onlyRole(GOVERNOR_ROLE) {
+        if (appraiser == address(0)) revert InvalidAddress();
         if (status) {
             _grantRole(APPRAISER_ROLE, appraiser);
         } else {

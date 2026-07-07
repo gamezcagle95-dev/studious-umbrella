@@ -9,15 +9,15 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${REPO_ROOT}"
 
-echo "[Wurk] Initializing Decentralized Command Center in ${REPO_ROOT}..."
+echo "[Protocol] Initializing Decentralized Command Center in ${REPO_ROOT}..."
 
 # 1. Configure Git Identity
-echo "[Wurk] Setting cryptographic commit identity..."
-git config --local user.name "wurk-coder"
-git config --local user.email "wurk@epiphany.network"
+echo "[Protocol] Setting cryptographic commit identity..."
+git config --local user.name "epiphany-coder"
+git config --local user.email "dev@epiphany.network"
 
 # 2. Establish Dual-Remote Architecture (Overlapping Push)
-echo "[Wurk] Wiring overlapping remotes for GitHub and GitLab..."
+echo "[Protocol] Wiring overlapping remotes for GitHub and GitLab..."
 
 # Dynamically grab the current GitHub fetch URL
 CURRENT_ORIGIN=$(git config --get remote.origin.url)
@@ -34,35 +34,35 @@ GITLAB_MIRROR="${CURRENT_ORIGIN/github.com/gitlab.com}"
 git remote set-url --add --push origin "${GITLAB_MIRROR}"
 
 # 3. Environment Isolation & Dependencies
-echo "[Wurk] Activating virtual environment for dependency isolation..."
+echo "[Protocol] Activating virtual environment for dependency isolation..."
 if [ -d "venv" ]; then
     # shellcheck disable=SC1091
     source venv/bin/activate
 else
-    echo "[Wurk] venv not found. Creating a new virtual environment..."
+    echo "[Protocol] venv not found. Creating a new virtual environment..."
     python3 -m venv venv
     # shellcheck disable=SC1091
     source venv/bin/activate
 fi
 
-echo "[Wurk] Installing Python dependencies from requirements.txt..."
+echo "[Protocol] Installing Python dependencies from requirements.txt..."
 python3 -m pip install --upgrade pip
 if [ -f "requirements.txt" ]; then
     python3 -m pip install -r requirements.txt
 else
-    echo "[Wurk] Error: requirements.txt not found."
+    echo "[Protocol] Error: requirements.txt not found."
     exit 1
 fi
 
 # 4. Install Smart Contract Tooling
-echo "[Wurk] Enforcing supply-chain security for Node.js..."
+echo "[Protocol] Enforcing supply-chain security for Node.js..."
 echo "ignore-scripts=true" > .npmrc
 
-echo "[Wurk] Installing Node dependencies for smart contract compilation..."
+echo "[Protocol] Installing Node dependencies for smart contract compilation..."
 if [ -f "package.json" ]; then
     npm install
 else
-    echo "[Wurk] No package.json detected. Skipping npm install."
+    echo "[Protocol] No package.json detected. Skipping npm install."
 fi
 
-echo "[Wurk] Setup complete. Environment is isolated and remotes are synchronized."
+echo "[Protocol] Setup complete. Environment is isolated and remotes are synchronized."

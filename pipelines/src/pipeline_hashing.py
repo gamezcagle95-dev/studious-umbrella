@@ -41,7 +41,7 @@ def generate_proof_packet(file_path, evaluator):
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(proof_packet, f, indent=2)
 
-    print("\n[Wurk] Proof Packet Generated Successfully.")
+    print("\n[Protocol] Proof Packet Generated Successfully.")
     print(f"Target: {file_path}")
     print(f"SHA256: {sha256_hash}")
     print(f"Output: {output_path}\n")

@@ -26,7 +26,8 @@ class AppraisalParams:
     """Parameters required for EIP-712 signing."""
     data_hash: bytes
     price_eit_wei: int
-    ipfs_cid: str
+    # pylint: disable=invalid-name
+    ipfsCID: str
     creator_address: str
     nonce: int
     expiry_delta: int = 3600
@@ -81,7 +82,7 @@ class AppraisalEngine:
         message = {
             "assetHash": params.data_hash,
             "price": params.price_eit_wei,
-            "ipfsCID": params.ipfs_cid,
+            "ipfsCID": params.ipfsCID,
             "nonce": params.nonce,
             "expiry": expiry,
             "creator": Web3.to_checksum_address(params.creator_address),

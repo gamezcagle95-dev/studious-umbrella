@@ -99,7 +99,7 @@ async function signAppraisalViem(
     transport: http(),
   });
 
-  console.log(`[Wurk] Signing EIP-712 appraisal with appraiser: ${account.address}`);
+  console.log(`[Protocol] Signing EIP-712 appraisal with appraiser: ${account.address}`);
 
   const signature = await walletClient.signTypedData({
     domain: eip712Domain(contractAddress),
@@ -115,19 +115,19 @@ async function signAppraisalViem(
  * @dev Main execution block simulating the EIT purchase on Monad Testnet.
  */
 async function runMonadIntegration() {
-    console.log("[Wurk] Initializing Viem-based Monad Testnet integration run...");
+    console.log("[Protocol] Initializing Viem-based Monad Testnet integration run...");
 
     const appraiser_key = ("0x" + "2".repeat(64)) as Hex;
     const buyer_key = ("0x" + "4".repeat(64)) as Hex;
     const creator_address = "0x" + "3".repeat(40) as Address;
 
     // Deployed contract address (Checksummed placeholder)
-    const data_asset_registry_address = "0xC68749d03426eFAAd206eFaAd206eFAAd206eFAA" as Address;
+    const data_asset_registry_address = "0xC68749d03426eFAAd206eFaAd206eFaAd206eFAA" as Address;
 
     // Simulate appraisal metrics
     const asset_hash = "0xce8d5c5a5803222eaaac66d5dd24a5976db1eeedf0211f328b6c1dee41004efe" as Hex;
     const price_eit_base = 6065280000000000000n; // 6.06528 EIT tokens
-    const ipfs_cid = "QmXoypizjW3WknFixtasW3ofZJ6fK75K75K75K75K75K7";
+    const ipfsCID_val = "QmXoypizjW3WknFixtasW3ofZJ6fK75K75K75K75K75K7";
     const nonce = 42n;
     const expiry = 9999999999n;
 
@@ -135,13 +135,13 @@ async function runMonadIntegration() {
     const signature = await signAppraisalViem(appraiser_key, data_asset_registry_address, {
         assetHash: asset_hash,
         price: price_eit_base,
-        ipfsCID: ipfs_cid,
+        ipfsCID: ipfsCID_val,
         nonce,
         expiry,
         creator: creator_address
     });
 
-    console.log(`[Wurk] Viem Signature Generated: ${signature}`);
+    console.log(`[Protocol] Viem Signature Generated: ${signature}`);
 
     // 2. Initialize Clients for on-chain execution
     const buyer_account = privateKeyToAccount(buyer_key);
@@ -156,11 +156,11 @@ async function runMonadIntegration() {
       transport: http(),
     });
 
-    console.log(`[Wurk] Wallet Client initialized for buyer: ${buyer_account.address}`);
-    console.log("[Wurk] System is fully configured for on-chain Monad Testnet execution.");
+    console.log(`[Protocol] Wallet Client initialized for buyer: ${buyer_account.address}`);
+    console.log("[Protocol] System is fully configured for on-chain Monad Testnet execution.");
 
     // Safe gas limits for Monad
-    console.log("[Wurk] Monad Parallel Execution: Gas limits will be overridden with 2x safety buffers in production.");
+    console.log("[Protocol] Monad Parallel Execution: Gas limits will be overridden with 2x safety buffers in production.");
 }
 
 runMonadIntegration().catch(console.error);

@@ -10,7 +10,7 @@ def generate_report():
     """
     Main orchestration for the documentation density audit.
     """
-    print("🔍 [Wurk] Starting Forensic Documentation Audit...")
+    print("🔍 [Protocol] Starting Forensic Documentation Audit...")
 
     files_to_check = [
         "src/contracts/ProvenanceLedger.sol",

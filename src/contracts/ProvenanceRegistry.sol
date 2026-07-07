@@ -47,7 +47,7 @@ contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
         tokenCount++;
         uint256 newTokenId = tokenCount;
 
-        _mint(recipient, newTokenId);
+        _safeMint(recipient, newTokenId);
         _setTokenURI(newTokenId, ipfsCID);
 
         emit DataNFTMinted(newTokenId, ipfsCID, recipient);
