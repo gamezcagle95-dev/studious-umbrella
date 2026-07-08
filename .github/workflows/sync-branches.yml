@@ -20,12 +20,9 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      # 2. Synchronize main into feat/data-asset-registry using transparent, inline git commands
-      # This mitigates unvetted third-party action supply-chain vulnerabilities
+      # 2. Synchronize feat/data-asset-registry
       - name: Sync main into feat/data-asset-registry
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin
           git checkout feat/data-asset-registry
           git merge origin/main --no-edit
@@ -36,8 +33,6 @@ jobs:
       # 3. Synchronize feat/protocol-final-consolidation
       - name: Sync main into feat/protocol-final-consolidation
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin
           git checkout feat/protocol-final-consolidation
           git merge origin/main --no-edit

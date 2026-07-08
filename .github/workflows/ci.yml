@@ -2,12 +2,11 @@
 name: Epiphany Protocol Integration CI
 
 on:
-  pull_request:
-    branches: [ main, master ]
   push:
     branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
-# Hardens GITHUB_TOKEN scope to read-only (Fixes actions/missing-workflow-permissions)
 permissions:
   contents: read
 
@@ -27,52 +26,40 @@ jobs:
         python-version: '3.12'
         cache: 'pip'
 
-    # 3. Install Python Web3 & forensic dependencies
     - name: Install Python Dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pylint vulnledger
 
-    # 4. Set up Node using pinned commit SHA (v4.0.3)
-    - name: Set up Node.js
-      uses: actions/setup-node@39223d79630c5d154a0b3360629515403d5402fd
-      with:
-        node-version: '20.x'
-        cache: 'npm'
-
-    # 5. Install Smart Contract Dependencies
-    - name: Install Smart Contract Dependencies
-      run: npm install
-
-    # 6. Enforce Pylint 10/10 standards
     - name: Run Pylint Checks
-      env:
-        PYTHONPATH: .
       run: |
         pylint scripts/appraisal_engine.py scripts/verify_integration.py pipelines/src/pipeline_hashing.py scripts/generate_trust_report.py
 
-    # 7. Secure CVE Invariant Scanning (Resolves AKUMA-creator-ng Security Finding)
+    # 3. Secure CVE Invariant Scanning (Resolves AKUMA-creator-ng Security Finding)
     - name: Run Vulnerability Scan
       run: |
         vulnledger scan . --ci
 
-    # 8. Run cryptographic signature and logic verification
-    # Note: Requires node_modules for OpenZeppelin remappings during on-the-fly compilation
     - name: Run Cryptographic Integration Tests
-      env:
-        PYTHONPATH: .
       run: |
         python3 scripts/verify_integration.py
         python3 pipelines/src/pipeline_hashing.py --test
 
-    # 9. Compile Solidity smart contracts
-    # Note: Using bin/build.contracts.sh as the standard entry point
-    - name: Compile Solidity Contracts (0.8.26)
+    # 4. Set up Node using pinned commit SHA (v4.0.3)
+    - name: Set up Node.js
+      uses: actions/setup-node@601291242487c7819299021d00d164f63a99c168
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+
+    - name: Install Node Dependencies
+      run: npm install
+
+    - name: Compile Solidity Contracts
       run: |
-        if [ -f "bin/build.contracts.sh" ]; then
-          chmod +x bin/build.contracts.sh
-          ./bin/build.contracts.sh
-        else
-          echo "No build script found, skipping compilation check."
+        if [ ! -f bin/build.contracts.sh ]; then
+          echo "Error: bin/build.contracts.sh not found!"
+          exit 1
         fi
+        /bin/bash bin/build.contracts.sh
