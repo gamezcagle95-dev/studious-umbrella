@@ -12,8 +12,9 @@ import sys
 from dataclasses import dataclass
 from typing import List, Any
 from web3 import Web3
-from solcx import compile_standard, install_solc
+from solcx import install_solc
 from dotenv import load_dotenv
+from scripts.shared_compiler import get_compiled_contracts
 
 @dataclass
 class DeploymentConfig:
@@ -53,8 +54,8 @@ def run_deployment_loop():
     print(f"✓ Linked to network ledger. Chain ID: {w3.eth.chain_id}")
     install_solc("0.8.26")
 
-    # Compile files in a single pass
-    compiled_sol = compile_files()
+    # Compile files in a single pass using shared compiler
+    compiled_sol = get_compiled_contracts()
 
     # 1. Deploy ProvenanceLedger
     ledger_config = DeploymentConfig(
@@ -79,26 +80,6 @@ def run_deployment_loop():
     print(f"✅ REGISTRY DEPLOYED: {registry_address}")
 
     mock_deployment_output(ledger_address, registry_address)
-
-def compile_files():
-    """
-    Compiles Solidity source files using the solc standard JSON input.
-    """
-    with open("src/contracts/ProvenanceLedger.sol", "r", encoding="utf-8") as f:
-        ledger_src = f.read()
-    with open("src/contracts/ProvenanceRegistry.sol", "r", encoding="utf-8") as f:
-        registry_src = f.read()
-
-    return compile_standard({
-        "language": "Solidity",
-        "sources": {
-            "ProvenanceLedger.sol": {"content": ledger_src},
-            "ProvenanceRegistry.sol": {"content": registry_src}
-        },
-        "settings": {
-            "outputSelection": {"*": {"*": ["abi", "evm.bytecode.object"]}}
-        }
-    }, allow_paths=os.path.abspath("node_modules"))
 
 def deploy_contract(w3, compiled_sol, config: DeploymentConfig):
     """

@@ -44,7 +44,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         address creator;
         uint128 rewardAmount;
         bool isClaimed;
-        string encryptedCid;
+        string encryptedCID;
     }
 
     mapping(uint256 => Bounty) public bounties;
@@ -93,7 +93,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         emit IntelligenceVerified(reportId, msg.sender);
     }
 
-    function triggerBounty(uint256 bountyId, string calldata submissionCid) external {
+    function triggerBounty(uint256 bountyId, string calldata submissionCID) external {
         Bounty storage bounty = bounties[bountyId];
         if (bounty.isClaimed) revert BountyAlreadyClaimed();
 

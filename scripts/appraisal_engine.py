@@ -10,7 +10,7 @@ from eth_account import Account
 # pylint: disable=no-name-in-module
 from eth_account.messages import encode_typed_data as encode_structured_data
 
-EIT_USD_RATE = 0.10  # 1 EIT = $0.10 USD
+EIT_USD_RATE = 0.10  # 1 EIT = -bash.10 USD
 
 
 @dataclass
@@ -19,7 +19,7 @@ class AppraisalParams:
     # pylint: disable=too-many-instance-attributes
     asset_hash_hex: str
     price_eit_base: int
-    ipfs_cid: str
+    ipfsCID: str  # pylint: disable=invalid-name
     nonce: int
     expiry: int
     creator_address: str
@@ -105,7 +105,7 @@ def sign_appraisal_eip712(params: AppraisalParams) -> str:
         "message": {
             "assetHash": bytes.fromhex(params.asset_hash_hex.replace("0x", "")),
             "price": params.price_eit_base,
-            "ipfsCID": params.ipfs_cid,
+            "ipfsCID": params.ipfsCID,
             "nonce": params.nonce,
             "expiry": params.expiry,
             "creator": params.creator_address

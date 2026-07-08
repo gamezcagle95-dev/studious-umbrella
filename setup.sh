@@ -10,8 +10,8 @@ echo "[Wurk] Initializing Decentralized Command Center..."
 
 # 1. Configure Git Identity (Local scope)
 echo "[Wurk] Setting local Git commit identity..."
-git config --local user.name "wurk-coder"
-git config --local user.email "wurk@epiphany.network"
+git config --local user.name "epiphany-bot"
+git config --local user.email "bot@epiphany.network"
 
 # 2. Establish Dual-Remote Architecture (Overlapping Push)
 echo "[Wurk] Configuring overlapping remote targets..."

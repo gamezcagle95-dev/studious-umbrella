@@ -49,7 +49,7 @@ def run_integration_test() -> None:
 
     # Calculate SHA-256 asset hash
     asset_hash = "0x" + hashlib.sha256(sample_trajectory.encode('utf-8')).hexdigest()
-    ipfs_cid = "QmXoypizjW3WknFixtasW3ofZJ6fK75K75K75K75K75K7"
+    ipfs_cid = "QmXoypizjW3WknFixtasW3ofZJ6fK75K75K75K75K75K7" # pylint: disable=invalid-name
 
     print(f"[Wurk] Generated Asset Hash: {asset_hash}")
 
@@ -69,7 +69,7 @@ def run_integration_test() -> None:
     params = AppraisalParams(
         asset_hash_hex=asset_hash,
         price_eit_base=price_in_eit,
-        ipfs_cid=ipfs_cid,
+        ipfsCID=ipfs_cid,
         nonce=nonce,
         expiry=expiry,
         creator_address=creator.address,
