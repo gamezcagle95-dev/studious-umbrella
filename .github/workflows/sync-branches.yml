@@ -5,32 +5,42 @@ on:
   push:
     branches:
       - main
-      - master
   workflow_dispatch: # Allows manual and agentic CLI triggering
-
-# Restrict write permissions strictly to this isolated execution runner
-permissions:
-  contents: write
 
 jobs:
   sync-branches:
     runs-on: ubuntu-latest
+
+    # Securely scopes write permissions to this specific execution job only
+    permissions:
+      contents: write
+
     steps:
       # 1. Checkout codebase using pinned commit SHA (v4.2.2)
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      # 2. Synchronize staging branches programmatically (v1.2.0 pinned)
-      - name: Sync Data Asset Registry Branch
-        uses: lucasruy/sync-branch-action@0368b64e5264b3c457fbc4ef62ef90f6b4df9dbe
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          source_branch: 'main'
-          target_branch: 'feat/data-asset-registry'
+      # 2. Synchronize main into feat/data-asset-registry using transparent, inline git commands
+      # This mitigates unvetted third-party action supply-chain vulnerabilities
+      - name: Sync main into feat/data-asset-registry
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin
+          git checkout feat/data-asset-registry
+          git merge origin/main --no-edit
+          git push origin feat/data-asset-registry
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Sync Protocol Final Consolidation Branch
-        uses: lucasruy/sync-branch-action@0368b64e5264b3c457fbc4ef62ef90f6b4df9dbe
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          source_branch: 'main'
-          target_branch: 'feat/protocol-final-consolidation'
+      # 3. Synchronize feat/protocol-final-consolidation
+      - name: Sync main into feat/protocol-final-consolidation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin
+          git checkout feat/protocol-final-consolidation
+          git merge origin/main --no-edit
+          git push origin feat/protocol-final-consolidation
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
