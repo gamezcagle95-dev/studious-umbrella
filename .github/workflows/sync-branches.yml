@@ -1,0 +1,36 @@
+# .github/workflows/sync-branches.yml
+name: Automated Branch Synchronization
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch: # Allows manual and agentic CLI triggering
+
+# Restrict write permissions strictly to this isolated execution runner
+permissions:
+  contents: write
+
+jobs:
+  sync-branches:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checkout codebase using pinned commit SHA (v4.2.2)
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      # 2. Synchronize staging branches programmatically (v1.2.0 pinned)
+      - name: Sync Data Asset Registry Branch
+        uses: lucasruy/sync-branch-action@0368b64e5264b3c457fbc4ef62ef90f6b4df9dbe
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          source_branch: 'main'
+          target_branch: 'feat/data-asset-registry'
+
+      - name: Sync Protocol Final Consolidation Branch
+        uses: lucasruy/sync-branch-action@0368b64e5264b3c457fbc4ef62ef90f6b4df9dbe
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          source_branch: 'main'
+          target_branch: 'feat/protocol-final-consolidation'
