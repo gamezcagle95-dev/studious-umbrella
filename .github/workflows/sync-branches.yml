@@ -20,7 +20,8 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      # 2. Synchronize feat/data-asset-registry
+      # 2. Synchronize main into feat/data-asset-registry using transparent, inline git commands
+      # This mitigates unvetted third-party action supply-chain vulnerabilities
       - name: Sync main into feat/data-asset-registry
         run: |
           git fetch origin
