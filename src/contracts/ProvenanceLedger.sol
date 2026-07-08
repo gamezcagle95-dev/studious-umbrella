@@ -8,10 +8,6 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
-interface IProvenanceRegistry {
-    function mintDataNFT(address recipient, string calldata ipfsCid) external returns (uint256);
-}
-
 /**
  * @title ProvenanceLedger
  * @dev Core settlement layer for the Epiphany Investigative Protocol.
@@ -21,7 +17,6 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
     using ECDSA for bytes32;
 
     address public seniorInvestigator;
-    address public registryAddress;
     uint64 public bountyCount;
     uint256 public constant RECOVERY_FEE_BPS = 500; // 5% performance reward fee
 
@@ -39,7 +34,6 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         address primaryInvestigator;
         bool isVerified;
         bool feeClaimed;
-        string ipfsCid;
     }
 
     mapping(bytes32 => IntelligenceReport) public intelligenceLedger;
@@ -70,19 +64,14 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
     /**
      * @dev Step 1: Anchor Forensic Findings onto the state machine.
      */
-    function anchorIntelligenceReport(
-        bytes32 reportId,
-        uint128 launderedValue,
-        string calldata ipfsCid
-    ) external whenNotPaused {
+    function anchorIntelligenceReport(bytes32 reportId, uint128 launderedValue) external whenNotPaused {
         if (intelligenceLedger[reportId].primaryInvestigator != address(0)) revert ReportAlreadyAnchored();
 
         intelligenceLedger[reportId] = IntelligenceReport({
             identifiedLaunderedValue: launderedValue,
             primaryInvestigator: msg.sender,
             isVerified: false,
-            feeClaimed: false,
-            ipfsCid: ipfsCid
+            feeClaimed: false
         });
 
         emit ProofAnchored(reportId, launderedValue, msg.sender);
@@ -101,17 +90,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         uint256 reward = (report.identifiedLaunderedValue * RECOVERY_FEE_BPS) / 10000;
         claimableCredits[report.primaryInvestigator] += reward;
 
-        // Mint Data NFT if registry is linked
-        if (registryAddress != address(0)) {
-            IProvenanceRegistry(registryAddress).mintDataNFT(report.primaryInvestigator, report.ipfsCid);
-        }
-
         emit IntelligenceVerified(reportId, msg.sender);
-    }
-
-    function setRegistryAddress(address _registryAddress) external {
-        if (msg.sender != seniorInvestigator) revert OnlySeniorInvestigator();
-        registryAddress = _registryAddress;
     }
 
     function triggerBounty(uint256 bountyId, string calldata submissionCid) external {

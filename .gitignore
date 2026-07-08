@@ -12,4 +12,3 @@ private_key.json
 # Raw training interaction datasets and system weights
 data/datasets/
 data/weights/
-artifacts/
