@@ -17,6 +17,8 @@ def generate_artifacts():
     compiled_sol = get_compiled_contracts()
 
     output_dir = "artifacts/contracts/latest"
+    if os.path.islink(output_dir):
+        os.unlink(output_dir)
     os.makedirs(output_dir, exist_ok=True)
 
     contract_mapping = {
