@@ -7,6 +7,7 @@ import time
 import math
 from collections import Counter
 from dataclasses import dataclass
+from typing import Any, Dict
 from eth_account import Account
 from eth_account.messages import encode_typed_data
 from web3 import Web3
@@ -44,7 +45,8 @@ class AppraisalEngine:
     """
     Engine for calculating data asset value and generating cryptographic signatures.
     """
-    def __init__(self, appraiser_private_key, chain_id, contract_address):
+    def __init__(self, appraiser_private_key: str, chain_id: int,
+                 contract_address: str) -> None:
         # pylint: disable=no-value-for-parameter
         self.account = Account.from_key(appraiser_private_key)
         self.chain_id = chain_id
@@ -86,7 +88,7 @@ class AppraisalEngine:
         eit_amount = usd_value * USD_TO_EIT_RATE
         return int(eit_amount * (10 ** EIT_DECIMALS))
 
-    def generate_appraisal_signature(self, params: AppraisalParams):
+    def generate_appraisal_signature(self, params: AppraisalParams) -> Dict[str, Any]:
         """
         Generates an EIP-712 structured signature for the appraisal.
         """
@@ -136,7 +138,7 @@ class AppraisalEngine:
             "signature": signed_message.signature.hex()
         }
 
-def run_engine_example():
+def run_engine_example() -> None:
     """
     Demonstrates the full appraisal workflow with entropy guardrails.
     """

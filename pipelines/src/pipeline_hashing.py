@@ -8,8 +8,9 @@ import json
 import datetime
 import argparse
 import tempfile
+from typing import Optional
 
-def calculate_file_hash(file_path, chunk_size=65536):
+def calculate_file_hash(file_path: str, chunk_size: int = 65536) -> str:
     """
     Calculates the SHA-256 hash of a file in chunks to optimize memory.
     This is used for protocol-level consistency across auditing tools.
@@ -23,7 +24,7 @@ def calculate_file_hash(file_path, chunk_size=65536):
             sha256.update(chunk)
     return sha256.hexdigest()
 
-def generate_proof_packet(file_path, evaluator):
+def generate_proof_packet(file_path: str, evaluator: str) -> str:
     """
     Generates a cryptographic proof packet for a target file.
     """
@@ -59,7 +60,7 @@ def generate_proof_packet(file_path, evaluator):
     print(f"Output: {output_path}\n")
     return sha256_hash
 
-def run_test_suite():
+def run_test_suite() -> None:
     """
     Executes a self-test of the hashing logic using a temporary file.
     """
