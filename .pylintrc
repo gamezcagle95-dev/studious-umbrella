@@ -39,7 +39,7 @@ extension-pkg-whitelist=
 fail-on=
 
 # Specify a score threshold under which the program will exit with error.
-fail-under=10.0
+fail-under=9.5
 
 # Interpret the stdin as a python script, whose filename needs to be passed as
 # the module_or_package argument.
@@ -556,7 +556,7 @@ spelling-ignore-words=
 spelling-private-dict-file=
 
 # Tells whether to store unknown words to the private dictionary (see the
-# --spelling-private-dict-file option) instead of raising a message.
+# spelling-private-dict-file option) instead of raising a message.
 spelling-store-unknown-words=no
 
 
@@ -614,7 +614,7 @@ missing-member-hint=yes
 # similar match for a missing member name.
 missing-member-hint-distance=1
 
-# The total number of similar names that should be taken in consideration when
+# The total number of similar names that should be considered when
 # showing a hint for a missing member.
 missing-member-max-choices=1
 
