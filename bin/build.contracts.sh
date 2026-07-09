@@ -34,7 +34,7 @@ EOF
 
 # Update rolling 'latest' shortcut via relative symlink
 echo "🔗 Synchronizing 'latest' build reference pointer..."
-rm -f "$BASE_DIR/latest"
+rm -rf "$BASE_DIR/latest"
 ln -s "./$TIMESTAMP" "$BASE_DIR/latest"
 
 echo "✓ Compilation artifact caching complete: $ARTIFACT_DIR"
