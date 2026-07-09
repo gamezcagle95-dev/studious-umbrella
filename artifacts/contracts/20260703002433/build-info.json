@@ -1,0 +1,7 @@
+{
+  "target": "contracts",
+  "timestamp": "20260703002433",
+  "version": "1.0.0",
+  "compiler": "solc-0.8.26",
+  "profile": "Epiphany Protocol"
+}
