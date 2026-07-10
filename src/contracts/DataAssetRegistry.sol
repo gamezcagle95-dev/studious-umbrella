@@ -3,7 +3,6 @@ pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
@@ -25,6 +24,7 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard {
     bytes32 public constant APPRAISER_ROLE = keccak256("APPRAISER_ROLE");
 
     // EIP-712 Struct Type Hash
+    // Note: Standardized on ipfsCID (uppercase CID)
     bytes32 public constant ASSET_APPRAISAL_TYPEHASH = keccak256(
         "AssetAppraisal(bytes32 assetHash,uint256 price,uint256 estimatedTokens,string ipfsCID,uint256 nonce,uint256 expiry,address creator)"
     );
@@ -75,7 +75,7 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard {
     struct AssetAppraisal {
         bytes32 assetHash;
         uint256 price;
-        uint256 estimatedTokens;
+        uint256 estimatedTokens; // Trusted value inside signed payload
         string ipfsCID;
         uint256 nonce;
         uint256 expiry;
@@ -167,11 +167,11 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard {
         if (appraisal.estimatedTokens > 0) {
             uint256 pricePerToken = (appraisal.price * 10**18) / appraisal.estimatedTokens;
             if (pricePerToken > maxPricePerTokenInEIT) {
-                // We do NOT revert here if we want isPaused to persist.
-                // Instead, we pause the contract and REQUIRE it to be unpaused to continue.
+                // To ensure isPaused state persists, we must return rather than revert.
+                // However, we must ensure NO purchase logic proceeds.
                 isPaused = true;
                 emit CircuitBreakerTriggered(appraisal.assetHash, appraisal.price, appraisal.estimatedTokens);
-                require(false, "Anomaly Detected: Circuit breaker triggered.");
+                return;
             }
         }
 
@@ -192,6 +192,7 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard {
                 appraisal.creator
             );
         } else {
+            // Confirm the pricing parameters have not been altered
             require(asset.price == appraisal.price, "Price mismatch: Asset already registered");
         }
 
@@ -199,6 +200,7 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard {
         accessGrants[msg.sender][appraisal.assetHash] = true;
 
         // 6. Token Settlement (INTERACTIONS)
+        // Pull EIT ERC-20 tokens from the buyer directly to the creator
         bool success = paymentToken.transferFrom(msg.sender, appraisal.creator, appraisal.price);
         require(success, "EIT token settlement transfer failed");
 

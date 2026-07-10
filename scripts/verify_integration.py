@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-verify_integration.py - Full Protocol Stack End-to-End Test Suite
+verify_integration.py - Full Protocol Stack End-to-E2E Test Suite
 
 Deploys mock accounts, appraises a real sample trajectory, hashes it,
 generates an EIP-712 signature, and simulates contract state transition.
@@ -34,7 +34,7 @@ def get_mock_accounts():
     appraiser_key = "0x" + "2" * 64
     creator_key = "0x" + "3" * 64
 
-    # Pylint E1120 false positive on Account.from_key
+    # Pylint E1120 false positive on Account methods
     # pylint: disable=no-value-for-parameter
     appraiser = Account.from_key(private_key=appraiser_key)
     creator = Account.from_key(private_key=creator_key)
