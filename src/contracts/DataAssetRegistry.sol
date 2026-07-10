@@ -3,6 +3,8 @@ pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
@@ -15,7 +17,7 @@ interface IProvenanceRegistry {
  * @dev Manages the purchasing, unlocking, and anchoring of high-density training data.
  * Settles payments in native EIT tokens and verifies EIP-712 structured appraisals.
  */
-contract DataAssetRegistry is AccessControl, EIP712 {
+contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard {
     using ECDSA for bytes32;
 
     // Roles (Aligned with existing codebase configurations)
@@ -73,7 +75,7 @@ contract DataAssetRegistry is AccessControl, EIP712 {
     struct AssetAppraisal {
         bytes32 assetHash;
         uint256 price;
-        uint256 estimatedTokens; // Now trusted inside the signed struct
+        uint256 estimatedTokens;
         string ipfsCID;
         uint256 nonce;
         uint256 expiry;
@@ -108,6 +110,7 @@ contract DataAssetRegistry is AccessControl, EIP712 {
      * @dev Allows an authorized Senior Investigator to manage approved appraisers.
      */
     function authorizeAppraiser(address appraiser) external onlyRole(SENIOR_INVESTIGATOR_ROLE) {
+        require(appraiser != address(0), "Invalid appraiser address");
         _grantRole(APPRAISER_ROLE, appraiser);
     }
 
@@ -136,7 +139,7 @@ contract DataAssetRegistry is AccessControl, EIP712 {
     function purchaseAsset(
         AssetAppraisal calldata appraisal,
         bytes calldata signature
-    ) external whenNotPaused {
+    ) external nonReentrant whenNotPaused {
         // 1. Invariant & Replay Protection Checks
         require(block.timestamp <= appraisal.expiry, "Appraisal signature has expired");
 
@@ -164,12 +167,11 @@ contract DataAssetRegistry is AccessControl, EIP712 {
         if (appraisal.estimatedTokens > 0) {
             uint256 pricePerToken = (appraisal.price * 10**18) / appraisal.estimatedTokens;
             if (pricePerToken > maxPricePerTokenInEIT) {
-                // Note: Revert rolls back the state change to isPaused.
-                // We acknowledge this but keep the logic for event logging clarity
-                // and immediate transaction blocking.
+                // We do NOT revert here if we want isPaused to persist.
+                // Instead, we pause the contract and REQUIRE it to be unpaused to continue.
                 isPaused = true;
                 emit CircuitBreakerTriggered(appraisal.assetHash, appraisal.price, appraisal.estimatedTokens);
-                revert("Anomaly Detected: Price-per-token exceeds limit. Circuit breaker triggered.");
+                require(false, "Anomaly Detected: Circuit breaker triggered.");
             }
         }
 
@@ -190,19 +192,18 @@ contract DataAssetRegistry is AccessControl, EIP712 {
                 appraisal.creator
             );
         } else {
-            // Confirm the pricing parameters have not been altered
             require(asset.price == appraisal.price, "Price mismatch: Asset already registered");
         }
 
-        // 5. Token Settlement (Checks-Effects-Interactions)
+        // 5. Update Query-Access Mapping (EFFECTS)
+        accessGrants[msg.sender][appraisal.assetHash] = true;
+
+        // 6. Token Settlement (INTERACTIONS)
         bool success = paymentToken.transferFrom(msg.sender, appraisal.creator, appraisal.price);
         require(success, "EIT token settlement transfer failed");
 
-        // 6. Cross-Contract Call to Mint Data NFT License (Option B)
+        // 7. Cross-Contract Call to Mint Data NFT License (Option B)
         provenanceRegistry.mintDataNFT(msg.sender, appraisal.ipfsCID);
-
-        // 7. Update Query-Access Mapping
-        accessGrants[msg.sender][appraisal.assetHash] = true;
 
         emit AssetUnlocked(
             appraisal.assetHash,

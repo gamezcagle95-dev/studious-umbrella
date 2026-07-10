@@ -121,5 +121,8 @@ def sign_appraisal_eip712(params: AppraisalSigningParams) -> str:
     structured_msg = encode_structured_data(full_message=eip712_payload)
     # Pylint E1120 false positive on Account.sign_message
     # pylint: disable=no-value-for-parameter
-    signed_msg = Account.sign_message(structured_msg, private_key=params.private_key)
+    signed_msg = Account.sign_message(
+        signable_message=structured_msg,
+        private_key=params.private_key
+    )
     return signed_msg.signature.hex()

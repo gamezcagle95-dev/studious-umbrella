@@ -21,6 +21,7 @@ contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
      * @param _ledgerAddress Legacy address to ensure existing tests do not break.
      */
     constructor(address _ledgerAddress) ERC721("Epiphany Data Asset", "EDA") {
+        require(_ledgerAddress != address(0), "Invalid ledger address");
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
 

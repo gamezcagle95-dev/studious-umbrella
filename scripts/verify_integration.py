@@ -36,8 +36,8 @@ def get_mock_accounts():
 
     # Pylint E1120 false positive on Account.from_key
     # pylint: disable=no-value-for-parameter
-    appraiser = Account.from_key(appraiser_key)
-    creator = Account.from_key(creator_key)
+    appraiser = Account.from_key(private_key=appraiser_key)
+    creator = Account.from_key(private_key=creator_key)
     return appraiser, appraiser_key, creator
 
 
@@ -48,7 +48,7 @@ def perform_local_verification(params, signature, appraiser_address):
     # Pylint E1120 false positive on Account.recover_message
     # pylint: disable=no-value-for-parameter
     recovered_address = Account.recover_message(
-        encode_structured_data(full_message=eip712_payload),
+        signable_message=encode_structured_data(full_message=eip712_payload),
         signature=signature
     )
 
@@ -79,7 +79,7 @@ def run_integration_test() -> None:
     params = AppraisalSigningParams(
         asset_hash_hex=asset_hash,
         price_eit_base=price_in_eit,
-        estimated_tokens=len(SAMPLE_TRAJECTORY.split()),  # Simple token estimation
+        estimated_tokens=len(SAMPLE_TRAJECTORY.split()),
         ipfs_cid=ipfs_cid,
         nonce=42,
         expiry=9999999999,
