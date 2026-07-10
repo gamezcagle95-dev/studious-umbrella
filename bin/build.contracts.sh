@@ -37,4 +37,22 @@ echo "🔗 Synchronizing 'latest' build reference pointer..."
 rm -rf "$BASE_DIR/latest"
 ln -s "./$TIMESTAMP" "$BASE_DIR/latest"
 
+# Update deployments.json in the root directory from public/settlement.json
+if [ -f "public/settlement.json" ]; then
+    echo "Updating deployments.json in the root directory..."
+    python3 -c '
+import json
+with open("public/settlement.json", "r", encoding="utf-8") as f:
+    data = json.load(f)
+contracts = data.get("contracts", {})
+dar_addr = contracts.get("Data_Asset_Registry", "0x0000000000000000000000000000000000000003")
+deployments = {
+    "contracts": contracts,
+    "DATA_ASSET_REGISTRY_ADDRESS": dar_addr
+}
+with open("deployments.json", "w", encoding="utf-8") as f:
+    json.dump(deployments, f, indent=2)
+'
+fi
+
 echo "✓ Compilation artifact caching complete: $ARTIFACT_DIR"
