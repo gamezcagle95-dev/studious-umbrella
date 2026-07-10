@@ -50,7 +50,7 @@ class AppraisalEngine:
         # pylint: disable=no-value-for-parameter
         self.account = Account.from_key(appraiser_private_key)
         self.chain_id = chain_id
-        self.contract_address = contract_address
+        self.contract_address = Web3.to_checksum_address(contract_address)
 
     @staticmethod
     def calculate_entropy(data: str) -> float:
@@ -138,6 +138,33 @@ class AppraisalEngine:
             "signature": signed_message.signature.hex()
         }
 
+def resolve_data_asset_registry_address() -> str:
+    """
+    Resolves and checksums the DataAssetRegistry address from environment
+    or from the deployments.json fallback.
+    """
+    dar_env = os.getenv("DATA_ASSET_REGISTRY_ADDRESS")
+    if dar_env:
+        return Web3.to_checksum_address(dar_env)
+
+    # Resolve path to deployments.json in the repository root
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    deployments_path = os.path.join(root_dir, "deployments.json")
+    if not os.path.exists(deployments_path):
+        deployments_path = "deployments.json"
+
+    try:
+        with open(deployments_path, "r", encoding="utf-8") as dep_file:
+            dep_data = json.load(dep_file)
+        contracts = dep_data.get("contracts", {})
+        dar_addr = contracts.get("Data_Asset_Registry") or dep_data.get("DATA_ASSET_REGISTRY_ADDRESS")
+        if not dar_addr:
+            raise ValueError("Data_Asset_Registry address not found in deployments.json")
+        return Web3.to_checksum_address(dar_addr)
+    except Exception as err:
+        raise RuntimeError(f"Failed to load DATA_ASSET_REGISTRY_ADDRESS: {err}") from err
+
+
 def run_engine_example() -> None:
     """
     Demonstrates the full appraisal workflow with entropy guardrails.
@@ -147,7 +174,7 @@ def run_engine_example() -> None:
     # Configuration
     p_key = os.getenv("APPRAISER_PRIVATE_KEY", "0x" + "9" * 64)
     c_id = int(os.getenv("CHAIN_ID", "1337"))
-    c_addr = Web3.to_checksum_address(os.getenv("DATA_ASSET_REGISTRY_ADDRESS", "0x" + "a" * 40))
+    c_addr = resolve_data_asset_registry_address()
 
     engine = AppraisalEngine(p_key, c_id, c_addr)
 
@@ -175,8 +202,8 @@ def run_engine_example() -> None:
         raise ValueError("CREATOR_ADDRESS environment variable is required.")
     creator = Web3.to_checksum_address(creator_raw)
     params = AppraisalParams(data_hash=d_hash, price_eit_wei=price_eit_wei,
-                            ipfs_cid="QmPK1s3pNYsjnu7wT2L7ck5nS1...", creator_address=creator,
-                            nonce=int(time.time()))
+                            ipfs_cid=os.getenv("IPFS_CID", "QmPK1s3pNYsjnu7wT2L7ck5nS1..."),
+                            creator_address=creator, nonce=int(time.time()))
 
     # pylint: disable=no-value-for-parameter
     result = engine.generate_appraisal_signature(params)
