@@ -16,8 +16,8 @@ echo "[Wurk] Setting cryptographic commit identity..."
 git config --local user.name "wurk-coder"
 git config --local user.email "wurk@epiphany.network"
 
-# 2. Establish Dual-Remote Architecture (Overlapping Push)
-echo "[Wurk] Wiring overlapping remotes for GitHub and GitLab..."
+# 2. Establish Remote Architecture
+echo "[Wurk] Wiring remote for GitHub origin..."
 
 # Dynamically grab the current GitHub fetch URL
 CURRENT_ORIGIN=$(git config --get remote.origin.url)
@@ -27,11 +27,6 @@ git config --local --unset-all remote.origin.pushurl || true
 
 # Set the primary push to the existing GitHub origin
 git remote set-url --push origin "${CURRENT_ORIGIN}"
-
-# Format and append the secondary push target for GitLab private CI testing
-# (Replacing 'github.com' with 'gitlab.com' for the mirror)
-GITLAB_MIRROR="${CURRENT_ORIGIN/github.com/gitlab.com}"
-git remote set-url --add --push origin "${GITLAB_MIRROR}"
 
 # 3. Environment Isolation & Dependencies
 echo "[Wurk] Activating virtual environment for dependency isolation..."
