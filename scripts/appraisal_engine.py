@@ -170,7 +170,10 @@ def run_engine_example() -> None:
         return
 
     # 3. Generate Signed Appraisal
-    creator = Web3.to_checksum_address("0x71C7656EC7ab88b098defB751B7401B5f6d147a3")
+    creator_raw = os.getenv("CREATOR_ADDRESS")
+    if not creator_raw:
+        raise ValueError("CREATOR_ADDRESS environment variable is required.")
+    creator = Web3.to_checksum_address(creator_raw)
     params = AppraisalParams(data_hash=d_hash, price_eit_wei=price_eit_wei,
                             ipfs_cid="QmPK1s3pNYsjnu7wT2L7ck5nS1...", creator_address=creator,
                             nonce=int(time.time()))
