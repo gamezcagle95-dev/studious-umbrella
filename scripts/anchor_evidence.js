@@ -11,7 +11,7 @@ const TARGET_REPORT_PATH = path.join(__dirname, '../investigation_report_001.txt
 const DEFAULT_FALLBACK_DATA = "INVESTIGATION_REPORT_001\nDATE: 2026-03-23\nSUBJECT: SEC LIQUIDITY INJECTION 2024\nSUMMARY: This report details the unauthorized injection of $4.2B into the 'Alpha-7' liquidity pool on 2024-02-14.";
 
 function processEvidenceFingerprint() {
-    console.log("🔍 Extracting raw baseline evidence records...");
+    console.log("[Wurk] 🔍 Extracting raw baseline evidence records...");
 
     let rawContent = DEFAULT_FALLBACK_DATA;
 
@@ -23,11 +23,11 @@ function processEvidenceFingerprint() {
     // Generate strict sha256 checksum
     const proofHash = crypto.createHash('sha256').update(rawContent).digest('hex');
 
-    console.log("----------------------------------------------------------------");
-    console.log(`📝 Evidence String:  "${rawContent.substring(0, 60)}..."`);
-    console.log(`🛡️  Generated Proof Hash: ${proofHash}`);
-    console.log("----------------------------------------------------------------");
-    console.log("✓ Off-chain anchoring fingerprint calculated successfully.");
+    console.log("[Wurk] ----------------------------------------------------------------");
+    console.log(`[Wurk] 📝 Evidence String:  "${rawContent.substring(0, 60)}..."`);
+    console.log(`[Wurk] 🛡️  Generated Proof Hash: ${proofHash}`);
+    console.log("[Wurk] ----------------------------------------------------------------");
+    console.log("[Wurk] ✓ Off-chain anchoring fingerprint calculated successfully.");
 }
 
 processEvidenceFingerprint();

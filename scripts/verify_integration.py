@@ -74,7 +74,7 @@ def deploy_contract(w3, data, args, deployer):
 
 def setup_protocol_stack(w3, deployer, node_modules_path):
     """Compiles and deploys the full protocol contract stack."""
-    print("⏳ Compiling contracts...")
+    print("[Wurk] ⏳ Compiling contracts...")
     ledger_data = compile_contract("src/contracts/ProvenanceLedger.sol",
                                  "ProvenanceLedger", node_modules_path)
     registry_data = compile_contract("src/contracts/ProvenanceRegistry.sol",
@@ -82,7 +82,7 @@ def setup_protocol_stack(w3, deployer, node_modules_path):
     dar_data = compile_contract("src/contracts/DataAssetRegistry.sol",
                               "DataAssetRegistry", node_modules_path)
 
-    print("⏳ Deploying Protocol Stack...")
+    print("[Wurk] ⏳ Deploying Protocol Stack...")
     ledger = deploy_contract(w3, ledger_data, [deployer], deployer)
     registry = deploy_contract(w3, registry_data, [ledger.address], deployer)
     dar = deploy_contract(w3, dar_data, [ledger.address, registry.address], deployer)
@@ -91,7 +91,7 @@ def setup_protocol_stack(w3, deployer, node_modules_path):
 
 def configure_authorizations(w3, stack, config: AuthConfig):
     """Configures roles, appraiser authorizations, and initial funding."""
-    print("⏳ Configuring roles and authorizations...")
+    print("[Wurk] ⏳ Configuring roles and authorizations...")
     minter_role_bytes = w3.keccak(text="MINTER_ROLE")
     stack.registry.functions.grantRole(minter_role_bytes, stack.dar.address).transact(
         {"from": config.deployer})
@@ -105,7 +105,7 @@ def configure_authorizations(w3, stack, config: AuthConfig):
     stack.ledger.functions.claimCredits().transact({"from": config.buyer_acc})
 
     buyer_balance = stack.ledger.functions.balanceOf(config.buyer_acc).call()
-    print(f"✓ Buyer funded with {buyer_balance / 10**18} EIT tokens.")
+    print(f"[Wurk] ✓ Buyer funded with {buyer_balance / 10**18} EIT tokens.")
 
 def perform_appraisal(engine, creator_acc, raw_data):
     """Performs the appraisal and returns the result."""
@@ -121,18 +121,18 @@ def perform_appraisal(engine, creator_acc, raw_data):
 
 def check_outcomes(stack, buyer_acc, data_hash, app_res):
     """Verifies the final state of the blockchain after purchase."""
-    print("⏳ Verifying outcomes...")
+    print("[Wurk] ⏳ Verifying outcomes...")
     has_access = stack.dar.functions.accessGrants(buyer_acc, data_hash).call()
     nft_bal = stack.registry.functions.balanceOf(buyer_acc).call()
     creator_bal = stack.ledger.functions.balanceOf(app_res["appraisal"]["creator"]).call()
 
-    print(f"✓ Access Grant: {has_access}, NFT Balance: {nft_bal}")
-    print(f"✓ Creator EIT Balance: {creator_bal / 10**18} tokens")
+    print(f"[Wurk] ✓ Access Grant: {has_access}, NFT Balance: {nft_bal}")
+    print(f"[Wurk] ✓ Creator EIT Balance: {creator_bal / 10**18} tokens")
 
     if has_access and nft_bal == 1 and creator_bal == app_res["appraisal"]["price"]:
         print("✓ End-to-end flow verified.")
     else:
-        print("❌ VERIFICATION FAILED")
+        print("[Wurk] ❌ VERIFICATION FAILED")
         sys.exit(1)
 
 def setup_test_env():
@@ -149,11 +149,11 @@ def setup_test_env():
 
 def test_security_features(ctx: SecurityTestContext):
     """Tests off-chain guardrails and on-chain circuit breakers."""
-    print("\n🛡️ Testing Security Features...")
+    print("\n[Wurk] 🛡️ Testing Security Features...")
     noise_data = os.urandom(100).decode('latin1')
     val = ctx.engine.calculate_valuation(AppraisalMetrics(100, 1, 1, 1), noise_data)
     if val == 0:
-        print("✅ Off-chain guardrail rejected noise successfully.")
+        print("[Wurk] ✅ Off-chain guardrail rejected noise successfully.")
 
     ctx.stack.dar.functions.setMaxPricePerAsset(1000 * 10**18).transact({"from": ctx.deployer})
     huge_price_app, _, _ = perform_appraisal(ctx.engine, ctx.creator_acc, "Legit data")
@@ -175,22 +175,22 @@ def test_security_features(ctx: SecurityTestContext):
              huge_signed["appraisal"]["expiry"], huge_signed["appraisal"]["creator"]),
             bytes.fromhex(huge_signed["signature"])
         ).transact({"from": ctx.buyer_acc})
-        print("❌ On-chain circuit breaker failed to block huge price.")
+        print("[Wurk] ❌ On-chain circuit breaker failed to block huge price.")
     except Exception: # pylint: disable=broad-exception-caught
-        print("✅ On-chain circuit breaker blocked huge price successfully.")
+        print("[Wurk] ✅ On-chain circuit breaker blocked huge price successfully.")
 
 def run_royalty_routing_simulation(w3, stack, appraisal_result, buyer_acc):
     """
     Executes the EIT Royalty Routing Simulation.
     """
-    print("\n🔄 Phase 1: Token Authorization...")
+    print("\n[Wurk] 🔄 Phase 1: Token Authorization...")
     price = appraisal_result["appraisal"]["price"]
     tx_hash = stack.ledger.functions.approve(stack.dar.address, price).transact(
         {"from": buyer_acc})
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-    print(f"✅ EIT Approve Successful! Hash: {receipt.transactionHash.hex()}")
+    print(f"[Wurk] ✅ EIT Approve Successful! Hash: {receipt.transactionHash.hex()}")
 
-    print("\n🔄 Phase 2: Settlement Transfer...")
+    print("\n[Wurk] 🔄 Phase 2: Settlement Transfer...")
     app_res = appraisal_result["appraisal"]
     appraisal_payload = (
         app_res["dataHash"], app_res["price"], app_res["ipfsCID"],
@@ -202,21 +202,21 @@ def run_royalty_routing_simulation(w3, stack, appraisal_result, buyer_acc):
     tx_hash = stack.dar.functions.purchaseAsset(appraisal_payload, signature).transact(
         {"from": buyer_acc})
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-    print(f"✅ Settlement Successful! Hash: {receipt.transactionHash.hex()}")
+    print(f"[Wurk] ✅ Settlement Successful! Hash: {receipt.transactionHash.hex()}")
 
     # Verify Transfer event
     logs = stack.ledger.events.Transfer().process_receipt(receipt)
     if any(log['args']['to'] == app_res["creator"] for log in logs):
-        print(f"✓ Royalty routed correctly to creator: {app_res['creator']}")
+        print(f"[Wurk] ✓ Royalty routed correctly to creator: {app_res['creator']}")
 
-    print("\n🔄 Phase 3: Minter Delegation...")
+    print("\n[Wurk] 🔄 Phase 3: Minter Delegation...")
     nft_logs = stack.registry.events.DataNFTMinted().process_receipt(receipt)
     if any(log['args']['creator'] == buyer_acc for log in nft_logs):
-        print(f"✓ Data NFT minted successfully for buyer: {buyer_acc}")
+        print(f"[Wurk] ✓ Data NFT minted successfully for buyer: {buyer_acc}")
 
 def verify_integration():
     """Main integration verification logic."""
-    print("🧪 Starting End-to-End Integration Verification...")
+    print("[Wurk] 🧪 Starting End-to-End Integration Verification...")
     w3, deployer, creator_acc, buyer_acc, app_acc = setup_test_env()
 
     stack = setup_protocol_stack(w3, deployer, os.path.abspath("node_modules"))
@@ -224,11 +224,11 @@ def verify_integration():
     auth_config = AuthConfig(deployer, app_acc.address, buyer_acc)
     configure_authorizations(w3, stack, auth_config)
 
-    print("\n⏳ Running Appraisal Engine...")
+    print("\n[Wurk] ⏳ Running Appraisal Engine...")
     engine = AppraisalEngine(app_acc.key, w3.eth.chain_id, stack.dar.address)
     raw_report = "Forensic analysis: Transaction 0xabc... reveals 4.2B unauthorized movement."
     app_res, valuation, d_hash = perform_appraisal(engine, creator_acc, raw_report)
-    print(f"✓ Appraisal signed. Price: {valuation} USD")
+    print(f"[Wurk] ✓ Appraisal signed. Price: {valuation} USD")
 
     run_royalty_routing_simulation(w3, stack, app_res, buyer_acc)
 
@@ -238,7 +238,7 @@ def verify_integration():
     sec_ctx = SecurityTestContext(stack, engine, creator_acc, buyer_acc, deployer)
     test_security_features(sec_ctx)
 
-    print("\n✨ INTEGRATION AND SECURITY VERIFIED SUCCESSFULLY ✨\n")
+    print("\n[Wurk] ✨ INTEGRATION AND SECURITY VERIFIED SUCCESSFULLY ✨\n")
 
 if __name__ == "__main__":
     verify_integration()

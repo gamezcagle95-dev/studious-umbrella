@@ -14,7 +14,7 @@ def generate_proof_packet(file_path, evaluator):
     Generates a cryptographic proof packet for a target file.
     """
     if not os.path.exists(file_path):
-        print(f"❌ Error: File not found at {file_path}")
+        print(f"[Wurk] ❌ Error: File not found at {file_path}")
         sys.exit(1)
 
     with open(file_path, "rb") as f:
@@ -41,17 +41,17 @@ def generate_proof_packet(file_path, evaluator):
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(proof_packet, f, indent=2)
 
-    print("\n[Wurk] Proof Packet Generated Successfully.")
-    print(f"Target: {file_path}")
-    print(f"SHA256: {sha256_hash}")
-    print(f"Output: {output_path}\n")
+    print("[Wurk] \n[Wurk] Proof Packet Generated Successfully.")
+    print(f"[Wurk] Target: {file_path}")
+    print(f"[Wurk] SHA256: {sha256_hash}")
+    print(f"[Wurk] Output: {output_path}\n")
     return sha256_hash
 
 def run_test_suite():
     """
     Executes a self-test of the hashing logic using a temporary file.
     """
-    print("🧪 Running Pipeline Hashing Self-Test...")
+    print("[Wurk] 🧪 Running Pipeline Hashing Self-Test...")
     with tempfile.NamedTemporaryFile(mode="w", delete=False) as tmp:
         tmp.write("Test content for Epiphany hashing")
         tmp_path = tmp.name
@@ -61,9 +61,9 @@ def run_test_suite():
         actual_hash = generate_proof_packet(tmp_path, "Test-Evaluator")
 
         if expected_hash == actual_hash:
-            print("✨ Hashing Verification Passed.")
+            print("[Wurk] ✨ Hashing Verification Passed.")
         else:
-            print("❌ Hashing Verification Failed.")
+            print("[Wurk] ❌ Hashing Verification Failed.")
             sys.exit(1)
     finally:
         if os.path.exists(tmp_path):

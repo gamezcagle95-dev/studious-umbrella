@@ -69,7 +69,8 @@ class AppraisalEngine:
 
         # Guardrail: If entropy exceeds threshold, we treat it as noise and nullify value
         if entropy > MAX_ENTROPY_THRESHOLD:
-            print(f"⚠️ Warning: High-entropy noise detected ({entropy:.2f}). Rejecting appraisal.")
+            print(f"[Wurk] ⚠️ Warning: High-entropy noise detected ({entropy:.2f}). "
+                  f"Rejecting appraisal.")
             return 0.0
 
         return (
@@ -140,7 +141,7 @@ def run_engine_example():
     """
     Demonstrates the full appraisal workflow with entropy guardrails.
     """
-    print("🚀 Initializing Epiphany Appraisal Engine with Guardrails...")
+    print("[Wurk] 🚀 Initializing Epiphany Appraisal Engine with Guardrails...")
 
     # Configuration
     p_key = os.getenv("APPRAISER_PRIVATE_KEY", "0x" + "9" * 64)
@@ -152,7 +153,7 @@ def run_engine_example():
     # 1. Ingest Raw Data
     raw_data = "Forensic analysis: Transaction 0xabc... reveals 4.2B unauthorized movement."
     d_hash = Web3.keccak(text=raw_data)
-    print(f"✓ Data Ingested. Asset Hash: {d_hash.hex()}")
+    print(f"[Wurk] ✓ Data Ingested. Asset Hash: {d_hash.hex()}")
 
     # 2. Calculate Metrics (B * I * S * D)
     metrics = AppraisalMetrics(base_cost=100.0, information_density=1.8,
@@ -161,8 +162,8 @@ def run_engine_example():
     valuation_usd = engine.calculate_valuation(metrics, raw_data)
     price_eit_wei = engine.usd_to_eit_wei(valuation_usd)
 
-    print(f"✓ Entropy Calculated: {engine.calculate_entropy(raw_data):.2f}")
-    print(f"✓ Valuation Calculated: ${valuation_usd:,.2f} USD")
+    print(f"[Wurk] ✓ Entropy Calculated: {engine.calculate_entropy(raw_data):.2f}")
+    print(f"[Wurk] ✓ Valuation Calculated: ${valuation_usd:,.2f} USD")
 
     if valuation_usd == 0:
         return
@@ -181,7 +182,7 @@ def run_engine_example():
     ser_app["dataHash"] = "0x" + ser_app["dataHash"].hex()
     ser_res = {"appraisal": ser_app, "signature": result["signature"]}
 
-    print("\n--- CRYPTOGRAPHIC APPRAISAL PROOF ---")
+    print("\n[Wurk] --- CRYPTOGRAPHIC APPRAISAL PROOF ---")
     print(json.dumps(ser_res, indent=2))
     print("--------------------------------------\n")
 
