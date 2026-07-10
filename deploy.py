@@ -252,7 +252,9 @@ def run_deployment_loop() -> None:
             json.dump(deployments_manifest, dep_file, indent=2)
 
         print(f"[Wurk] Simulation complete. Mock addresses saved to: {OUTPUT_ARTIFACT_PATH}")
-        return
+os.makedirs(os.path.dirname(os.path.abspath('deployments.json')), exist_ok=True)
+with open('deployments.json', 'w', encoding='utf-8') as dep_file:
+    json.dump(deployments_manifest, dep_file, indent=2)
 
     # 2. Sequential Deployments
     base_config = deploy_base_protocols(w3, env)
