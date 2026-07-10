@@ -11,12 +11,7 @@ cd "${REPO_ROOT}"
 
 echo "[Wurk] Initializing Decentralized Command Center in ${REPO_ROOT}..."
 
-# 1. Configure Git Identity
-echo "[Wurk] Setting cryptographic commit identity..."
-git config --local user.name "wurk-coder"
-git config --local user.email "wurk@epiphany.network"
-
-# 2. Establish Remote Architecture
+# 1. Establish Remote Architecture
 echo "[Wurk] Wiring remote for GitHub origin..."
 
 # Dynamically grab the current GitHub fetch URL
