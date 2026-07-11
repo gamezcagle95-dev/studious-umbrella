@@ -39,6 +39,7 @@ class AppraisalParams:
     ipfs_cid: str
     creator_address: str
     nonce: int
+    estimated_tokens: int = 0
     expiry_seconds: int = 3600
 
 class AppraisalEngine:
@@ -93,6 +94,7 @@ class AppraisalEngine:
         Generates an EIP-712 structured signature for the appraisal.
         """
         expiry = int(time.time()) + params.expiry_seconds
+        est_tokens = params.estimated_tokens if params.estimated_tokens > 0 else params.price_eit_wei
 
         # EIP-712 Domain
         domain_data = {
@@ -104,9 +106,10 @@ class AppraisalEngine:
 
         # EIP-712 Types
         message_types = {
-            "Appraisal": [
-                {"name": "dataHash", "type": "bytes32"},
+            "AssetAppraisal": [
+                {"name": "assetHash", "type": "bytes32"},
                 {"name": "price", "type": "uint256"},
+                {"name": "estimatedTokens", "type": "uint256"},
                 {"name": "ipfsCID", "type": "string"},
                 {"name": "nonce", "type": "uint256"},
                 {"name": "expiry", "type": "uint256"},
@@ -116,8 +119,9 @@ class AppraisalEngine:
 
         # The Appraisal Payload
         appraisal_data = {
-            "dataHash": params.data_hash,
+            "assetHash": params.data_hash,
             "price": params.price_eit_wei,
+            "estimatedTokens": est_tokens,
             "ipfsCID": params.ipfs_cid,
             "nonce": params.nonce,
             "expiry": expiry,

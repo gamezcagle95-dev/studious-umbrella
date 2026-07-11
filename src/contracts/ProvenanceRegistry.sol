@@ -60,7 +60,7 @@ contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC721ERC721URIStorage, AccessControl)
+        override(ERC721URIStorage, AccessControl)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
