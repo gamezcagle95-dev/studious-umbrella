@@ -38,7 +38,6 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard, Pausable {
 
     mapping(bytes32 => bool) public usedNonces;
     mapping(address => mapping(bytes32 => bool)) public accessGrants;
-    bool private _anomalyDetected;
 
     event AssetUnlocked(bytes32 indexed assetHash, address indexed buyer, uint256 price, string ipfsCID);
     event CircuitBreakerTriggered(bytes32 indexed assetHash, uint256 price, uint256 estimatedTokens);
@@ -58,10 +57,6 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard, Pausable {
 
     function setPaused(bool _paused) external onlyRole(SENIOR_INVESTIGATOR_ROLE) {
         _paused ? _pause() : _unpause();
-    }
-
-    function setMaxPricePerAsset(uint256 _maxPricePerAsset) external onlyRole(SENIOR_INVESTIGATOR_ROLE) {
-        maxPricePerTokenInEIT = _maxPricePerAsset;
     }
 
     function purchaseAsset(AssetAppraisal calldata appraisal, bytes calldata signature)
@@ -91,12 +86,22 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard, Pausable {
         if (appraisal.estimatedTokens > 0) {
             uint256 pricePerToken = (appraisal.price * 10**18) / appraisal.estimatedTokens;
             if (pricePerToken > maxPricePerTokenInEIT) {
-                if (!_anomalyDetected) {
-                    _anomalyDetected = true;
-                    _pause();
-                    emit CircuitBreakerTriggered(appraisal.assetHash, appraisal.price, appraisal.estimatedTokens);
-                }
-                return;
+                _pause();
+// Option A: Separate the pause into a dedicated role-gated function and call it via an off-chain monitor.
+// Option B: Use a custom non-reverting guard:
+bool private _anomalyDetected;
+
+if (pricePerToken > maxPricePerTokenInEIT) {
+    if (!_anomalyDetected) {
+        _anomalyDetected = true;
+        _pause();
+        emit CircuitBreakerTriggered(appraisal.assetHash, appraisal.price, appraisal.estimatedTokens);
+    }
+    revert("Circuit Breaker: Price anomaly detected");
+}
+// NOTE: _pause() must be called in a SEPARATE transaction (e.g. via Chainlink Automation or an
+// off-chain guardian) if you want the pause to persist. A revert-after-pause is always a no-op.
+                revert("Circuit Breaker: Price anomaly detected");
             }
         }
 

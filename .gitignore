@@ -17,6 +17,5 @@ data/weights/
 artifacts/
 cache/
 typechain/
-out/
 
 .env
