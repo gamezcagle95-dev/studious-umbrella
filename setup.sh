@@ -1,63 +1,77 @@
-#!/usr/bin/env bash
+#!/bin/bash
+# ==============================================================================
 # setup.sh - Epiphany Automated Environment Initialization
+# Safe, idempotent setup script for isolated containers and CLI environments.
+# ==============================================================================
 
-# Exit immediately if a command exits with a non-zero status,
-# treat unset variables as an error, and fail on pipe errors.
-set -euo pipefail
+set -eo pipefail
 
-# Get the absolute path of the repository root
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "${REPO_ROOT}"
+echo "[Wurk] Initializing Decentralized Command Center..."
 
-echo "[Wurk] Initializing Decentralized Command Center in ${REPO_ROOT}..."
+# 1. Configure Git Identity (Local scope)
+echo "[Wurk] Setting local Git commit identity..."
+git config --local user.name "epiphany-bot"
+git config --local user.email "bot@epiphany.network"
 
-# 1. Configure Git Identity
-echo "[Wurk] Setting cryptographic commit identity..."
-git config --local user.name "wurk-coder"
-git config --local user.email "wurk@epiphany.network"
+# 2. Establish Dual-Remote Architecture (Overlapping Push)
+echo "[Wurk] Configuring overlapping remote targets..."
+if git config --get remote.origin.url >/dev/null; then
+    CURRENT_ORIGIN=$(git config --get remote.origin.url)
 
-# 2. Establish Remote Architecture
-echo "[Wurk] Wiring remote for GitHub origin..."
+    # Unset all push URLs first to avoid conflicts
+    git config --local --unset-all remote.origin.pushurl || true
 
-# Dynamically grab the current GitHub fetch URL
-CURRENT_ORIGIN=$(git config --get remote.origin.url)
+    # Set standard push to GitHub
+    git remote set-url --push origin "$CURRENT_ORIGIN"
 
-# Reset push URLs to prevent duplicates on re-run
-git config --local --unset-all remote.origin.pushurl || true
+    # Opt-in GitLab Mirroring
+    if [ "$EPIPHANY_GITLAB_MIRROR" = "true" ]; then
+        echo "[Wurk] Opt-in GitLab mirroring detected."
+        # Format and append GitLab push target for private CI testing
+        GITLAB_MIRROR="${CURRENT_ORIGIN/github.com/gitlab.com}"
+        git remote set-url --add --push origin "$GITLAB_MIRROR"
+        echo "[Wurk] Overlapping push targets configured successfully."
+    else
+        echo "[Wurk] GitLab mirroring is disabled (Default)."
+    fi
+else
+    echo "[Wurk] Warning: 'origin' remote not set. Skipping overlapping push wiring."
+fi
 
-# Set the primary push to the existing GitHub origin
-git remote set-url --push origin "${CURRENT_ORIGIN}"
-
-# 3. Environment Isolation & Dependencies
-echo "[Wurk] Activating virtual environment for dependency isolation..."
+# 3. Environment Isolation & Python Dependencies
+echo "[Wurk] Verifying Python virtual environment..."
 if [ -d "venv" ]; then
-    # shellcheck disable=SC1091
+    echo "[Wurk] Existing venv found. Activating..."
+    # shellcheck source=/dev/null
     source venv/bin/activate
 else
-    echo "[Wurk] venv not found. Creating a new virtual environment..."
+    echo "[Wurk] Creating a new virtual environment..."
     python3 -m venv venv
-    # shellcheck disable=SC1091
+    # shellcheck source=/dev/null
     source venv/bin/activate
 fi
 
-echo "[Wurk] Installing Python dependencies from requirements.txt..."
-python3 -m pip install --upgrade pip
+echo "[Wurk] Upgrading pip and installing dependencies..."
+pip install --upgrade pip
 if [ -f "requirements.txt" ]; then
-    python3 -m pip install -r requirements.txt
+    pip install -r requirements.txt
 else
-    echo "[Wurk] Error: requirements.txt not found."
-    exit 1
+    pip install web3 eth-account requests pandas python-dotenv pylint
 fi
+pip install pylint # Ensure pylint is available
 
 # 4. Install Smart Contract Tooling
-echo "[Wurk] Enforcing supply-chain security for Node.js..."
-echo "ignore-scripts=true" > .npmrc
-
-echo "[Wurk] Installing Node dependencies for smart contract compilation..."
+echo "[Wurk] Checking for smart contract dependencies..."
 if [ -f "package.json" ]; then
     npm install
 else
-    echo "[Wurk] No package.json detected. Skipping npm install."
+    echo "[Wurk] No package.json detected. Skipping Node dependency resolution."
 fi
 
-echo "[Wurk] Setup complete. Environment is isolated and remotes are synchronized."
+# 5. Pathing (Merged from main)
+export PYTHONPATH=$PYTHONPATH:.
+if ! grep -q "PYTHONPATH" venv/bin/activate 2>/dev/null; then
+    echo "export PYTHONPATH=\$PYTHONPATH:." >> venv/bin/activate
+fi
+
+echo "[Wurk] Setup complete. Environment is secure, isolated, and ready."

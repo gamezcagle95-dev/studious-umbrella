@@ -6,3 +6,5 @@ eth-account==0.13.7
 requests==2.34.2
 types-requests==2.33.0.20260518
 pandas==2.2.3
+eth-tester==0.13.0b1
+py-evm==0.12.1b1

@@ -6,33 +6,38 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
  * @title ProvenanceRegistry
- * @dev Manages the cryptographic proof of AI interaction datasets and mints Data NFTs.
+ * @dev Mints Data NFTs representing verified forensic assets. 
+ * Reconciled: Retains legacy ledger pointer for test compatibility with modern security errors.
  */
 contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-
+    
     uint256 public tokenCount;
     address public legacyLedgerAddress;
 
-    // Emitted when a new dataset hash is anchored/minted
+    // Custom security errors
+    error InvalidAddress();
+
     event DataNFTMinted(uint256 indexed tokenId, string ipfsCID, address indexed creator);
 
     /**
      * @param _ledgerAddress Legacy address to ensure existing tests do not break.
      */
     constructor(address _ledgerAddress) ERC721("Epiphany Data Asset", "EDA") {
-        require(_ledgerAddress != address(0), "Invalid ledger address");
+        if (_ledgerAddress == address(0)) revert InvalidAddress();
+        
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
-
         _grantRole(MINTER_ROLE, _ledgerAddress);
+        
         legacyLedgerAddress = _ledgerAddress;
     }
 
     /**
-     * @dev Mints a Data NFT representation (Option B / License Token).
-     * @param recipient The address receiving the license token.
-     * @param ipfsCID The IPFS Content Identifier of the underlying trajectory data.
+     * @dev Mints a secure token pointer linking to a verified off-chain dataset.
+     * @param recipient The wallet address receiving the token.
+     * @param ipfsCID The immutable IPFS CID of the encrypted data file.
+     * @return The unique uint256 ID of the minted data token.
      */
     function mintDataNFT(address recipient, string calldata ipfsCID)
         external
@@ -50,12 +55,12 @@ contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
     }
 
     /**
-     * @dev Explicit override for supportsInterface to resolve inheritance conflict.
+     * @dev Required override for AccessControl and ERC721.
      */
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC721URIStorage, AccessControl)
+        override(ERC721ERC721URIStorage, AccessControl)
         returns (bool)
     {
         return super.supportsInterface(interfaceId);

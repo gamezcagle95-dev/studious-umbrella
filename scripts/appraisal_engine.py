@@ -1,128 +1,221 @@
 """
-appraisal_engine.py - EIP-712 Appraisal Valuation and Signing Engine
-
-Calculates dynamic data values (B * I * S * D) and outputs verified EIP-712 signatures.
+EPIPHANY APPRAISAL ENGINE - DATA ASSET VALUATION & SIGNING
 """
-
+import os
+import json
+import time
 import math
+from collections import Counter
 from dataclasses import dataclass
+from typing import Any, Dict
 from eth_account import Account
-from eth_account.messages import encode_typed_data as encode_structured_data
+from eth_account.messages import encode_typed_data
+from web3 import Web3
+from dotenv import load_dotenv
 
-EIT_USD_RATE = 0.10  # 1 EIT = $0.10 USD
+load_dotenv()
 
+# Hardcoded conversion rate: 1 EIT = $0.10 USD
+# So 1 USD = 10 EIT tokens
+USD_TO_EIT_RATE = 10
+EIT_DECIMALS = 18
+
+# Security Thresholds
+MAX_ENTROPY_THRESHOLD = 5.0  # Threshold for noise filtering (bits per character)
 
 @dataclass
-# pylint: disable=too-many-instance-attributes
-class AppraisalSigningParams:
-    """Container for appraisal parameters to satisfy Pylint argument limits."""
-    asset_hash_hex: str
-    price_eit_base: int
-    estimated_tokens: int
+class AppraisalMetrics:
+    """Container for the B*I*S*D valuation metrics."""
+    base_cost: float          # B: Base Cost
+    information_density: float # I: Information Density
+    scarcity_metric: float     # S: Scarcity Metric
+    demand_vector: float       # D: Demand Vector
+
+@dataclass
+class AppraisalParams:
+    """Container for appraisal signature parameters to satisfy Pylint."""
+    data_hash: bytes
+    price_eit_wei: int
     ipfs_cid: str
-    nonce: int
-    expiry: int
     creator_address: str
-    private_key: str
-    contract_address: str
-    chain_id: int = 1337
+    nonce: int
+    expiry_seconds: int = 3600
 
+class AppraisalEngine:
+    """
+    Engine for calculating data asset value and generating cryptographic signatures.
+    """
+    def __init__(self, appraiser_private_key: str, chain_id: int,
+                 contract_address: str) -> None:
+        # pylint: disable=no-value-for-parameter
+        self.account = Account.from_key(appraiser_private_key)
+        self.chain_id = chain_id
+        self.contract_address = Web3.to_checksum_address(contract_address)
 
-def usd_to_eit_base_units(usd_value: float) -> int:
-    """Converts USD appraisal into EIT base units (18 decimals)."""
-    eit_amount = usd_value / EIT_USD_RATE
-    return int(eit_amount * 10**18)
+    @staticmethod
+    def calculate_entropy(data: str) -> float:
+        """
+        Calculates Shannon entropy of the input string to detect high-entropy noise.
+        """
+        if not data:
+            return 0.0
+        probabilities = [count / len(data) for count in Counter(data).values()]
+        return -sum(p * math.log2(p) for p in probabilities)
 
+    def calculate_valuation(self, metrics: AppraisalMetrics, raw_data: str) -> float:
+        """
+        Calculates the final USD asset value using the formula: B * I * S * D.
+        Filters out high-entropy noise before calculation.
+        """
+        entropy = self.calculate_entropy(raw_data)
 
-def calculate_shannon_entropy(text: str) -> float:
-    """Calculates character-level Shannon Entropy of the text."""
-    if not text:
-        return 0.0
-    freqs = {}
-    for char in text:
-        freqs[char] = freqs.get(char, 0) + 1
+        # Guardrail: If entropy exceeds threshold, we treat it as noise and nullify value
+        if entropy > MAX_ENTROPY_THRESHOLD:
+            print(f"⚠️ Warning: High-entropy noise detected ({entropy:.2f}). Rejecting appraisal.")
+            return 0.0
 
-    entropy = 0.0
-    total_chars = len(text)
-    for count in freqs.values():
-        p = count / total_chars
-        entropy -= p * math.log2(p)
-    return entropy
+        return (
+            metrics.base_cost *
+            metrics.information_density *
+            metrics.scarcity_metric *
+            metrics.demand_vector
+        )
 
+    def usd_to_eit_wei(self, usd_value: float) -> int:
+        """
+        Converts a USD valuation into EIT token units (Wei-equivalent, 10^18).
+        """
+        eit_amount = usd_value * USD_TO_EIT_RATE
+        return int(eit_amount * (10 ** EIT_DECIMALS))
 
-def get_information_density(text: str) -> float:
-    """Normalizes Shannon Entropy into a density multiplier."""
-    entropy = calculate_shannon_entropy(text)
-    return round(max(0.1, entropy / 4.5), 3)
+    def generate_appraisal_signature(self, params: AppraisalParams) -> Dict[str, Any]:
+        """
+        Generates an EIP-712 structured signature for the appraisal.
+        """
+        expiry = int(time.time()) + params.expiry_seconds
 
+        # EIP-712 Domain
+        domain_data = {
+            "name": "DataAssetRegistry",
+            "version": "1",
+            "chainId": self.chain_id,
+            "verifyingContract": self.contract_address,
+        }
 
-def get_scarcity_metric(text: str) -> float:
-    """Simulates semantic scarcity based on vocabulary variance."""
-    if not text:
-        return 0.5
-    unique_chars = len(set(text))
-    total_chars = len(text)
-    diversity_ratio = unique_chars / total_chars
-    return round(max(0.5, math.exp(diversity_ratio * 2.0)), 3)
-
-
-def get_appraisal_payload(params: AppraisalSigningParams) -> dict:
-    """Constructs the EIP-712 structured data payload."""
-    return {
-        "types": {
-            "EIP712Domain": [
-                {"name": "name", "type": "string"},
-                {"name": "version", "type": "string"},
-                {"name": "chainId", "type": "uint256"},
-                {"name": "verifyingContract", "type": "address"}
-            ],
-            "AssetAppraisal": [
-                {"name": "assetHash", "type": "bytes32"},
+        # EIP-712 Types
+        message_types = {
+            "Appraisal": [
+                {"name": "dataHash", "type": "bytes32"},
                 {"name": "price", "type": "uint256"},
-                {"name": "estimatedTokens", "type": "uint256"},
                 {"name": "ipfsCID", "type": "string"},
                 {"name": "nonce", "type": "uint256"},
                 {"name": "expiry", "type": "uint256"},
-                {"name": "creator", "type": "address"}
-            ]
-        },
-        "primaryType": "AssetAppraisal",
-        "domain": {
-            "name": "DataAssetRegistry",
-            "version": "1",
-            "chainId": params.chain_id,
-            "verifyingContract": params.contract_address
-        },
-        "message": {
-            "assetHash": bytes.fromhex(params.asset_hash_hex.replace("0x", "")),
-            "price": params.price_eit_base,
-            "estimatedTokens": params.estimated_tokens,
+                {"name": "creator", "type": "address"},
+            ],
+        }
+
+        # The Appraisal Payload
+        appraisal_data = {
+            "dataHash": params.data_hash,
+            "price": params.price_eit_wei,
             "ipfsCID": params.ipfs_cid,
             "nonce": params.nonce,
-            "expiry": params.expiry,
-            "creator": params.creator_address
+            "expiry": expiry,
+            "creator": params.creator_address,
         }
-    }
 
+        # Encode and Sign
+        signable_message = encode_typed_data(
+            domain_data=domain_data,
+            message_types=message_types,
+            message_data=appraisal_data
+        )
 
-def calculate_appraisal(text: str, base_cost: float, demand_multiplier: float) -> float:
+        signed_message = self.account.sign_message(signable_message)
+
+        return {
+            "appraisal": appraisal_data,
+            "signature": signed_message.signature.hex()
+        }
+
+def resolve_data_asset_registry_address() -> str:
     """
-    Computes final valuation using the multi-variable formula:
-    Price = Base Cost * Information Density * Scarcity * Demand
+    Resolves and checksums the DataAssetRegistry address from environment
+    or from the deployments.json fallback.
     """
-    info_density = get_information_density(text)
-    scarcity = get_scarcity_metric(text)
-    return round(base_cost * info_density * scarcity * demand_multiplier, 6)
+    dar_env = os.getenv("DATA_ASSET_REGISTRY_ADDRESS")
+    if dar_env:
+        return Web3.to_checksum_address(dar_env)
+
+    # Resolve path to deployments.json in the repository root
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    deployments_path = os.path.join(root_dir, "deployments.json")
+    if not os.path.exists(deployments_path):
+        deployments_path = "deployments.json"
+
+    try:
+        with open(deployments_path, "r", encoding="utf-8") as dep_file:
+            dep_data = json.load(dep_file)
+        contracts = dep_data.get("contracts", {})
+        dar_addr = contracts.get("Data_Asset_Registry") or dep_data.get("DATA_ASSET_REGISTRY_ADDRESS")
+        if not dar_addr:
+            raise ValueError("Data_Asset_Registry address not found in deployments.json")
+        return Web3.to_checksum_address(dar_addr)
+    except Exception as err:
+        raise RuntimeError(f"Failed to load DATA_ASSET_REGISTRY_ADDRESS: {err}") from err
 
 
-def sign_appraisal_eip712(params: AppraisalSigningParams) -> str:
-    """Constructs and signs an EIP-712 compliant AssetAppraisal struct."""
-    eip712_payload = get_appraisal_payload(params)
-    structured_msg = encode_structured_data(full_message=eip712_payload)
-    # Pylint E1120 false positive on Account.sign_message
+def run_engine_example() -> None:
+    """
+    Demonstrates the full appraisal workflow with entropy guardrails.
+    """
+    print("🚀 Initializing Epiphany Appraisal Engine with Guardrails...")
+
+    # Configuration
+    p_key = os.getenv("APPRAISER_PRIVATE_KEY", "0x" + "9" * 64)
+    c_id = int(os.getenv("CHAIN_ID", "1337"))
+    c_addr = resolve_data_asset_registry_address()
+
+    engine = AppraisalEngine(p_key, c_id, c_addr)
+
+    # 1. Ingest Raw Data
+    raw_data = "Forensic analysis: Transaction 0xabc... reveals 4.2B unauthorized movement."
+    d_hash = Web3.keccak(text=raw_data)
+    print(f"✓ Data Ingested. Asset Hash: {d_hash.hex()}")
+
+    # 2. Calculate Metrics (B * I * S * D)
+    metrics = AppraisalMetrics(base_cost=100.0, information_density=1.8,
+                              scarcity_metric=2.5, demand_vector=1.5)
+
+    valuation_usd = engine.calculate_valuation(metrics, raw_data)
+    price_eit_wei = engine.usd_to_eit_wei(valuation_usd)
+
+    print(f"✓ Entropy Calculated: {engine.calculate_entropy(raw_data):.2f}")
+    print(f"✓ Valuation Calculated: ${valuation_usd:,.2f} USD")
+
+    if valuation_usd == 0:
+        return
+
+    # 3. Generate Signed Appraisal
+    creator_raw = os.getenv("CREATOR_ADDRESS")
+    if not creator_raw:
+        raise ValueError("CREATOR_ADDRESS environment variable is required.")
+    creator = Web3.to_checksum_address(creator_raw)
+    params = AppraisalParams(data_hash=d_hash, price_eit_wei=price_eit_wei,
+                            ipfs_cid=os.getenv("IPFS_CID", "QmPK1s3pNYsjnu7wT2L7ck5nS1..."),
+                            creator_address=creator, nonce=int(time.time()))
+
     # pylint: disable=no-value-for-parameter
-    signed_msg = Account.sign_message(
-        signable_message=structured_msg,
-        private_key=params.private_key
-    )
-    return signed_msg.signature.hex()
+    result = engine.generate_appraisal_signature(params)
+
+    # Manual conversion for HexBytes
+    ser_app = result["appraisal"].copy()
+    ser_app["dataHash"] = "0x" + ser_app["dataHash"].hex()
+    ser_res = {"appraisal": ser_app, "signature": result["signature"]}
+
+    print("\n--- CRYPTOGRAPHIC APPRAISAL PROOF ---")
+    print(json.dumps(ser_res, indent=2))
+    print("--------------------------------------\n")
+
+if __name__ == "__main__":
+    run_engine_example()
