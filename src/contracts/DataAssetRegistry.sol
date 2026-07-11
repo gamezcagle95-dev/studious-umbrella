@@ -87,21 +87,8 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard, Pausable {
             uint256 pricePerToken = (appraisal.price * 10**18) / appraisal.estimatedTokens;
             if (pricePerToken > maxPricePerTokenInEIT) {
                 _pause();
-// Option A: Separate the pause into a dedicated role-gated function and call it via an off-chain monitor.
-// Option B: Use a custom non-reverting guard:
-bool private _anomalyDetected;
-
-if (pricePerToken > maxPricePerTokenInEIT) {
-    if (!_anomalyDetected) {
-        _anomalyDetected = true;
-        _pause();
-        emit CircuitBreakerTriggered(appraisal.assetHash, appraisal.price, appraisal.estimatedTokens);
-    }
-    revert("Circuit Breaker: Price anomaly detected");
-}
-// NOTE: _pause() must be called in a SEPARATE transaction (e.g. via Chainlink Automation or an
-// off-chain guardian) if you want the pause to persist. A revert-after-pause is always a no-op.
-                revert("Circuit Breaker: Price anomaly detected");
+                emit CircuitBreakerTriggered(appraisal.assetHash, appraisal.price, appraisal.estimatedTokens);
+                return;
             }
         }
 
