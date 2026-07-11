@@ -14,15 +14,17 @@ permissions:
 jobs:
   verify-protocol-stack:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
     # 1. Checkout the compiled code state
     - name: Checkout Code
-      uses: actions/checkout@v4
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
     # 2. Set up Python environment
     - name: Set up Python 3.12
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3
       with:
         python-version: '3.12'
         cache: 'pip'
@@ -36,7 +38,7 @@ jobs:
 
     # 4. Set up Node for Solidity compilation checks
     - name: Set up Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@601291242487c7819299021d00d164f63a99c168
       with:
         node-version: '20.x'
         cache: 'npm'
@@ -45,12 +47,16 @@ jobs:
     - name: Install Smart Contract Dependencies
       run: npm install
 
+    # 5.5. Run Vulnledger Security Scan
+    - name: Vulnerability Scan
+      run: vulnledger scan . --ci
+
     # 6. Enforce Pylint 10/10 standards
     - name: Run Pylint Checks
       env:
         PYTHONPATH: .
       run: |
-        pylint scripts/appraisal_engine.py scripts/verify_integration.py pipelines/src/pipeline_hashing.py
+        pylint scripts/ pipelines/
 
     # 7. Run cryptographic signature and logic verification
     # Note: Requires node_modules for OpenZeppelin remappings during on-the-fly compilation
