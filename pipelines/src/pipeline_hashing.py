@@ -8,7 +8,6 @@ import json
 import datetime
 import argparse
 import tempfile
-from typing import Optional
 
 def calculate_file_hash(file_path: str, chunk_size: int = 65536) -> str:
     """

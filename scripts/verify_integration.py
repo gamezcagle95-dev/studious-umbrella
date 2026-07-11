@@ -3,7 +3,6 @@ EPIPHANY INTEGRATION VERIFIER - EIT ROYALTY ROUTING SIMULATION
 """
 import os
 import sys
-import time
 from dataclasses import dataclass
 from typing import Any, Tuple, Dict
 from web3 import Web3
@@ -85,7 +84,8 @@ def setup_protocol_stack(w3: Web3, deployer: str, node_modules_path: str) -> Pro
     print("⏳ Deploying Protocol Stack...")
     ledger = deploy_contract(w3, ledger_data, [deployer], deployer)
     registry = deploy_contract(w3, registry_data, [ledger.address], deployer)
-    dar = deploy_contract(w3, dar_data, [ledger.address, registry.address], deployer)
+    max_price_per_token = 100 * 10**18
+    dar = deploy_contract(w3, dar_data, [ledger.address, registry.address, deployer, max_price_per_token], deployer)
 
     return ProtocolStack(ledger, registry, dar)
 
@@ -95,7 +95,8 @@ def configure_authorizations(w3: Web3, stack: ProtocolStack, config: AuthConfig)
     minter_role_bytes = w3.keccak(text="MINTER_ROLE")
     stack.registry.functions.grantRole(minter_role_bytes, stack.dar.address).transact(
         {"from": config.deployer})
-    stack.dar.functions.setAppraiser(config.appraiser_addr, True).transact(
+    appraiser_role_bytes = w3.keccak(text="APPRAISER_ROLE")
+    stack.dar.functions.grantRole(appraiser_role_bytes, config.appraiser_addr).transact(
         {"from": config.deployer})
 
     report_id = w3.keccak(text="initial_funding")
@@ -116,8 +117,15 @@ def perform_appraisal(engine: AppraisalEngine, creator_acc: str,
                               scarcity_metric=2.0, demand_vector=1.2)
     valuation_usd = engine.calculate_valuation(metrics, raw_data)
     price = engine.usd_to_eit_wei(valuation_usd)
-    params = AppraisalParams(data_hash=data_hash, price_eit_wei=price,
-                            ipfs_cid="QmTest123456789", creator_address=creator_acc, nonce=1)
+    estimated_tokens = price
+    params = AppraisalParams(
+        asset_hash=data_hash,
+        price_eit_wei=price,
+        estimated_tokens=estimated_tokens,
+        ipfs_cid="QmTest123456789",
+        creator_address=creator_acc,
+        nonce=1
+    )
     appraisal_result = engine.generate_appraisal_signature(params)
     return appraisal_result, valuation_usd, data_hash
 
@@ -145,6 +153,7 @@ def setup_test_env() -> Tuple[Web3, str, str, str, Account]:
     deployer = accounts[0]
     creator_acc = accounts[1]
     buyer_acc = accounts[2]
+    # pylint: disable=no-value-for-parameter
     app_acc = Account.create()
 
     if "0.8.26" not in [str(v) for v in solcx.get_installed_solc_versions()]:
@@ -160,12 +169,13 @@ def test_security_features(ctx: SecurityTestContext) -> None:
     if val == 0:
         print("✅ Off-chain guardrail rejected noise successfully.")
 
-    ctx.stack.dar.functions.setMaxPricePerAsset(1000 * 10**18).transact({"from": ctx.deployer})
     huge_price_app, _, _ = perform_appraisal(ctx.engine, ctx.creator_acc, "Legit data")
     huge_price_app["appraisal"]["price"] = 2000 * 10**18
+    huge_price_app["appraisal"]["estimatedTokens"] = 10**18
     huge_params = AppraisalParams(
-        data_hash=huge_price_app["appraisal"]["dataHash"],
+        asset_hash=huge_price_app["appraisal"]["assetHash"],
         price_eit_wei=huge_price_app["appraisal"]["price"],
+        estimated_tokens=huge_price_app["appraisal"]["estimatedTokens"],
         ipfs_cid=huge_price_app["appraisal"]["ipfsCID"],
         creator_address=huge_price_app["appraisal"]["creator"],
         nonce=2
@@ -175,14 +185,24 @@ def test_security_features(ctx: SecurityTestContext) -> None:
         ctx.stack.ledger.functions.approve(ctx.stack.dar.address, 2000 * 10**18).transact(
             {"from": ctx.buyer_acc})
         ctx.stack.dar.functions.purchaseAsset(
-            (huge_signed["appraisal"]["dataHash"], huge_signed["appraisal"]["price"],
+            (huge_signed["appraisal"]["assetHash"], huge_signed["appraisal"]["price"],
+             huge_signed["appraisal"]["estimatedTokens"],
              huge_signed["appraisal"]["ipfsCID"], huge_signed["appraisal"]["nonce"],
              huge_signed["appraisal"]["expiry"], huge_signed["appraisal"]["creator"]),
             bytes.fromhex(huge_signed["signature"])
         ).transact({"from": ctx.buyer_acc})
-        print("❌ On-chain circuit breaker failed to block huge price.")
+
+        # Non-reverting circuit breaker pattern: Verify that the contract was paused and the purchase was blocked
+        is_paused = ctx.stack.dar.functions.paused().call()
+        has_access = ctx.stack.dar.functions.accessGrants(ctx.buyer_acc, huge_signed["appraisal"]["assetHash"]).call()
+        if is_paused and not has_access:
+            print("✅ On-chain circuit breaker blocked huge price and paused successfully (non-reverting return).")
+        else:
+            print("❌ On-chain circuit breaker failed to block huge price.")
+            sys.exit(1)
     except Exception:  # pylint: disable=broad-exception-caught
-        print("✅ On-chain circuit breaker blocked huge price successfully.")
+        # Reverting circuit breaker pattern
+        print("✅ On-chain circuit breaker blocked huge price successfully (revert).")
 
 def run_royalty_routing_simulation(w3: Web3, stack: ProtocolStack,
                                   appraisal_result: Dict[str, Any], buyer_acc: str) -> None:
@@ -199,8 +219,8 @@ def run_royalty_routing_simulation(w3: Web3, stack: ProtocolStack,
     print("\n🔄 Phase 2: Settlement Transfer...")
     app_res = appraisal_result["appraisal"]
     appraisal_payload = (
-        app_res["dataHash"], app_res["price"], app_res["ipfsCID"],
-        app_res["nonce"], app_res["expiry"], app_res["creator"]
+        app_res["assetHash"], app_res["price"], app_res["estimatedTokens"],
+        app_res["ipfsCID"], app_res["nonce"], app_res["expiry"], app_res["creator"]
     )
     sig_hex = appraisal_result["signature"]
     signature = bytes.fromhex(sig_hex[2:]) if sig_hex.startswith("0x") else bytes.fromhex(sig_hex)

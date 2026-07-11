@@ -34,8 +34,9 @@ class AppraisalMetrics:
 @dataclass
 class AppraisalParams:
     """Container for appraisal signature parameters to satisfy Pylint."""
-    data_hash: bytes
+    asset_hash: bytes
     price_eit_wei: int
+    estimated_tokens: int
     ipfs_cid: str
     creator_address: str
     nonce: int
@@ -104,9 +105,10 @@ class AppraisalEngine:
 
         # EIP-712 Types
         message_types = {
-            "Appraisal": [
-                {"name": "dataHash", "type": "bytes32"},
+            "AssetAppraisal": [
+                {"name": "assetHash", "type": "bytes32"},
                 {"name": "price", "type": "uint256"},
+                {"name": "estimatedTokens", "type": "uint256"},
                 {"name": "ipfsCID", "type": "string"},
                 {"name": "nonce", "type": "uint256"},
                 {"name": "expiry", "type": "uint256"},
@@ -116,8 +118,9 @@ class AppraisalEngine:
 
         # The Appraisal Payload
         appraisal_data = {
-            "dataHash": params.data_hash,
+            "assetHash": params.asset_hash,
             "price": params.price_eit_wei,
+            "estimatedTokens": params.estimated_tokens,
             "ipfsCID": params.ipfs_cid,
             "nonce": params.nonce,
             "expiry": expiry,
@@ -169,6 +172,7 @@ def run_engine_example() -> None:
     """
     Demonstrates the full appraisal workflow with entropy guardrails.
     """
+    # pylint: disable=too-many-locals
     print("🚀 Initializing Epiphany Appraisal Engine with Guardrails...")
 
     # Configuration
@@ -201,7 +205,9 @@ def run_engine_example() -> None:
     if not creator_raw:
         raise ValueError("CREATOR_ADDRESS environment variable is required.")
     creator = Web3.to_checksum_address(creator_raw)
-    params = AppraisalParams(data_hash=d_hash, price_eit_wei=price_eit_wei,
+    estimated_tokens = price_eit_wei
+    params = AppraisalParams(asset_hash=d_hash, price_eit_wei=price_eit_wei,
+                            estimated_tokens=estimated_tokens,
                             ipfs_cid=os.getenv("IPFS_CID", "QmPK1s3pNYsjnu7wT2L7ck5nS1..."),
                             creator_address=creator, nonce=int(time.time()))
 
@@ -210,7 +216,7 @@ def run_engine_example() -> None:
 
     # Manual conversion for HexBytes
     ser_app = result["appraisal"].copy()
-    ser_app["dataHash"] = "0x" + ser_app["dataHash"].hex()
+    ser_app["assetHash"] = "0x" + ser_app["assetHash"].hex()
     ser_res = {"appraisal": ser_app, "signature": result["signature"]}
 
     print("\n--- CRYPTOGRAPHIC APPRAISAL PROOF ---")
