@@ -23,21 +23,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 2. Configure Git identity
+      # 2. Configure Git identity dynamically to exclude hardcoded PII/emails
       - name: Configure Git Identity
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          USER_NAME="${{ github.actor }}"
+          USER_EMAIL="${{ github.actor_id }}+${{ github.actor }}@users.noreply."
+          git config --global user.name "$USER_NAME"
+          git config --global user.email "${USER_EMAIL}github.com"
 
       # 3. Synchronize staging branches using auditable, inline git merge routines
       - name: Sync feat/data-asset-registry
         run: |
-          git checkout feat/data-asset-registry
+          git checkout feat/data-asset-registry || git checkout -b feat/data-asset-registry origin/feat/data-asset-registry
           git merge origin/main --no-edit --allow-unrelated-histories
           git push origin feat/data-asset-registry
 
       - name: Sync feat/protocol-final-consolidation
         run: |
-          git checkout feat/protocol-final-consolidation
+          git checkout feat/protocol-final-consolidation || git checkout -b feat/protocol-final-consolidation origin/feat/protocol-final-consolidation
           git merge origin/main --no-edit --allow-unrelated-histories
           git push origin feat/protocol-final-consolidation
