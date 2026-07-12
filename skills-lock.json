@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "autofix": {
+      "source": "coderabbitai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/autofix/SKILL.md",
+      "computedHash": "421f9102c20fb1c91d87a10ca9bee2e91c7e632e644dfdd3dc013e53865df6c1"
+    },
     "rag-blueprint": {
       "source": "NVIDIA/skills",
       "sourceType": "github",
