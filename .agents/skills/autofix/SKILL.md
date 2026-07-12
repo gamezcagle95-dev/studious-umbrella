@@ -261,10 +261,13 @@ Display issues in original thread order, but review "Fix" issues in severity ord
 - Move to next
 
 **If "Modify":**
+- Prompt the user: "Detected manual override. Please apply changes."
 - Inform the user that they can make manual changes in another terminal/tab or edit the files.
 - Prompt the user to confirm when they have finished modifying the code.
-- Re-run validation checks (e.g., build/test/lint) on the modified files to ensure no new errors are introduced.
-- Re-evaluate the diff of the modified files and present the updated status.
+- Verification Loop-back:
+  - Run an explicit call to `validate_file_syntax()` or a linter check (e.g., `pylint` or `forge build`) on the modified files before the agent proceeds to the consolidated commit phase.
+  - If validation fails, the agent must re-surface the diff for review, report errors, and loop back to prompt the user to apply further changes.
+  - Once validation successfully passes, re-evaluate the diff of the modified files and present the updated status.
 - Once confirmed and validated, include the manual changes in the tracked list of changed files for the final consolidated commit.
 
 After all fixes, display summary of fixed/skipped issues.
