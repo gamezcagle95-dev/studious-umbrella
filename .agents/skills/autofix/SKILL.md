@@ -281,14 +281,11 @@ If any fixes were applied:
 
 ```bash
 git add <all-changed-files>
-# Construct a traceable, descriptive commit message detailing the specific issues resolved (e.g., including the issue titles or counts)
-issue_count=$(echo "$applied_fixes_count")
-commit_msg="fix: apply CodeRabbit auto-fixes for $issue_count issue(s)
+# Generate dynamic summary
+SUMMARY="fix: addressed $(echo "$issues" | wc -l) issues in $(basename "$target_file")"
 
-The following fixes were reviewed and applied:
-$applied_fixes_summary"
-
-git commit -m "$commit_msg"
+# Execute
+git commit -m "$SUMMARY" -m "Automated fix applied via CodeRabbit workflow."
 ```
 
 Use one commit for all applied fixes in this run.
