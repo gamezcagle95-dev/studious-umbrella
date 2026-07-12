@@ -21,12 +21,14 @@ if [ -z "$pr_number" ] || [ "$pr_number" = "null" ]; then
 fi
 ```
 
-If no PR exists and the user wants one created, derive title/body from the latest commit:
+If no PR exists and the user wants one created, derive title/body from the latest commit using a secure stream pattern:
 
 ```bash
 title=$(git log -1 --pretty=format:'%s')
 body=$(git log -1 --pretty=format:'%b')
-gh pr create --title "$title" --body "${body:-Auto-created by CodeRabbit autofix}"
+printf '%s' "${body:-Auto-created by CodeRabbit autofix}" > .tmp_body.txt
+gh pr create --title "$title" --body-file .tmp_body.txt
+rm -f .tmp_body.txt
 ```
 
 ## 2. Resolve Repository Coordinates

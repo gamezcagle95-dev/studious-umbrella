@@ -80,7 +80,9 @@ fi
 ```bash
 title=$(git log -1 --pretty=format:'%s')
 body=$(git log -1 --pretty=format:'%b')
-gh pr create --title "$title" --body "${body:-Auto-created by CodeRabbit autofix}"
+printf '%s' "${body:-Auto-created by CodeRabbit autofix}" > .tmp_body.txt
+gh pr create --title "$title" --body-file .tmp_body.txt
+rm -f .tmp_body.txt
 ```
 
 After creating the PR, inform "Run skill again in ~5 min", EXIT.
@@ -108,7 +110,8 @@ while :; do
     args+=(-F cursor="$cursor")
   fi
 
-  response=$(gh api graphql "${args[@]}" -f query='query($owner:String!, $repo:String!, $pr:Int!, $cursor:String) {
+  # Call gh api graphql and capture both stdout and exit status safely
+  if ! response=$(gh api graphql "${args[@]}" -f query='query($owner:String!, $repo:String!, $pr:Int!, $cursor:String) {
     repository(owner:$owner, name:$repo) {
       pullRequest(number:$pr) {
         title
@@ -135,10 +138,18 @@ while :; do
         }
       }
     }
-  }')
+  }'); then
+    echo "❌ Error: Failed to fetch pull request review threads via GitHub API." >&2
+    exit 1
+  fi
+
+  if ! jq -e . <<<"$response" >/dev/null 2>&1; then
+    echo "❌ Error: Received invalid JSON response from GitHub API." >&2
+    exit 1
+  fi
 
   all_threads=$(jq -c --argjson response "$response" '
-    . + $response.data.repository.pullRequest.reviewThreads.nodes
+    . + ($response.data.repository.pullRequest.reviewThreads.nodes // [])
   ' <<<"$all_threads")
 
   has_next=$(jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' <<<"$response")
@@ -250,8 +261,11 @@ Display issues in original thread order, but review "Fix" issues in severity ord
 - Move to next
 
 **If "Modify":**
-- Inform user can make changes manually
-- Move to next
+- Inform the user that they can make manual changes in another terminal/tab or edit the files.
+- Prompt the user to confirm when they have finished modifying the code.
+- Re-run validation checks (e.g., build/test/lint) on the modified files to ensure no new errors are introduced.
+- Re-evaluate the diff of the modified files and present the updated status.
+- Once confirmed and validated, include the manual changes in the tracked list of changed files for the final consolidated commit.
 
 After all fixes, display summary of fixed/skipped issues.
 
@@ -267,7 +281,14 @@ If any fixes were applied:
 
 ```bash
 git add <all-changed-files>
-git commit -m "fix: apply CodeRabbit auto-fixes"
+# Construct a traceable, descriptive commit message detailing the specific issues resolved (e.g., including the issue titles or counts)
+issue_count=$(echo "$applied_fixes_count")
+commit_msg="fix: apply CodeRabbit auto-fixes for $issue_count issue(s)
+
+The following fixes were reviewed and applied:
+$applied_fixes_summary"
+
+git commit -m "$commit_msg"
 ```
 
 Use one commit for all applied fixes in this run.
