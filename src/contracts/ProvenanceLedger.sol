@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 interface IProvenanceRegistry {
-    function mintDataNFT(address recipient, string calldata ipfsCid) external returns (uint256);
+    function mintDataNFT(address recipient, string calldata ipfsCID) external returns (uint256);
 }
 
 /**
@@ -39,7 +39,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
         address primaryInvestigator;
         bool isVerified;
         bool feeClaimed;
-        string ipfsCid;
+        string ipfsCID;
     }
 
     mapping(bytes32 => IntelligenceReport) public intelligenceLedger;
@@ -73,7 +73,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
     function anchorIntelligenceReport(
         bytes32 reportId,
         uint128 launderedValue,
-        string calldata ipfsCid
+        string calldata ipfsCID
     ) external whenNotPaused {
         if (intelligenceLedger[reportId].primaryInvestigator != address(0)) revert ReportAlreadyAnchored();
 
@@ -82,7 +82,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
             primaryInvestigator: msg.sender,
             isVerified: false,
             feeClaimed: false,
-            ipfsCid: ipfsCid
+            ipfsCID: ipfsCID
         });
 
         emit ProofAnchored(reportId, launderedValue, msg.sender);
@@ -103,7 +103,7 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
 
         // Mint Data NFT if registry is linked
         if (registryAddress != address(0)) {
-            IProvenanceRegistry(registryAddress).mintDataNFT(report.primaryInvestigator, report.ipfsCid);
+            IProvenanceRegistry(registryAddress).mintDataNFT(report.primaryInvestigator, report.ipfsCID);
         }
 
         emit IntelligenceVerified(reportId, msg.sender);
