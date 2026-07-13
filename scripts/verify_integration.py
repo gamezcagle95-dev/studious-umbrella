@@ -39,9 +39,11 @@ class SecurityTestContext:
 
 def compile_contract(file_path: str, contract_name: str, node_modules_path: str) -> Dict[str, Any]:
     """Compiles a Solidity contract with OpenZeppelin remappings."""
+    # Read the Solidity source code contents from the filesystem securely
     with open(file_path, "r", encoding="utf-8") as f:
         source = f.read()
 
+    # Configure standard compilation parameters with Cancun/OZ remappings
     settings = {
         "outputSelection": {"*": {"*": ["abi", "evm.bytecode.object"]}},
         "remappings": [
@@ -49,12 +51,14 @@ def compile_contract(file_path: str, contract_name: str, node_modules_path: str)
         ]
     }
 
+    # Execute py-solc-x compilation with explicit parameters
     compiled = solcx.compile_standard({
         "language": "Solidity",
         "sources": {os.path.basename(file_path): {"content": source}},
         "settings": settings
     }, allow_paths=node_modules_path)
 
+    # Clean compile diagnostics check block
     if "errors" in compiled:
         for error in compiled["errors"]:
             if error["severity"] == "error":
@@ -66,14 +70,18 @@ def compile_contract(file_path: str, contract_name: str, node_modules_path: str)
 
 def deploy_contract(w3: Web3, data: Dict[str, Any], args: list, deployer: str) -> Any:
     """Deploys a contract and returns the contract instance."""
+    # Construct contract representation using ABI and compiled bytecode object
     contract = w3.eth.contract(abi=data["abi"], bytecode=data["evm"]["bytecode"]["object"])
+    # Issue transaction and wait for transaction receipt confirmation
     tx_hash = contract.constructor(*args).transact({"from": deployer})
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+    # Instantiate and return contract with its finalized on-chain address mapping
     return w3.eth.contract(address=receipt.contractAddress, abi=data["abi"])
 
 def setup_protocol_stack(w3: Web3, deployer: str, node_modules_path: str) -> ProtocolStack:
     """Compiles and deploys the full protocol contract stack."""
     print("⏳ Compiling contracts...")
+    # Step-by-step compilation of entire Solidity contract family
     ledger_data = compile_contract("src/contracts/ProvenanceLedger.sol",
                                  "ProvenanceLedger", node_modules_path)
     registry_data = compile_contract("src/contracts/ProvenanceRegistry.sol",
@@ -82,6 +90,7 @@ def setup_protocol_stack(w3: Web3, deployer: str, node_modules_path: str) -> Pro
                               "DataAssetRegistry", node_modules_path)
 
     print("⏳ Deploying Protocol Stack...")
+    # Deploy ledger first, then the registry linked to ledger, then data registry
     ledger = deploy_contract(w3, ledger_data, [deployer], deployer)
     registry = deploy_contract(w3, registry_data, [ledger.address], deployer)
     max_price_per_token = 100 * 10**18
