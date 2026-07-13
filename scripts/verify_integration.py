@@ -133,7 +133,7 @@ def perform_appraisal(engine: AppraisalEngine, creator_acc: str,
         asset_hash=data_hash,
         price_eit_wei=price,
         estimated_tokens=estimated_tokens,
-        ipfs_cid="QmTest123456789",
+        ipfsCID="QmTest123456789",
         creator_address=creator_acc,
         nonce=1
     )
@@ -190,7 +190,7 @@ def test_security_features(ctx: SecurityTestContext) -> None:
         asset_hash=huge_price_app["appraisal"]["assetHash"],
         price_eit_wei=huge_price_app["appraisal"]["price"],
         estimated_tokens=huge_price_app["appraisal"]["estimatedTokens"],
-        ipfs_cid=huge_price_app["appraisal"]["ipfsCID"],
+        ipfsCID=huge_price_app["appraisal"]["ipfsCID"],
         creator_address=huge_price_app["appraisal"]["creator"],
         nonce=2
     )

@@ -31,16 +31,18 @@ class AppraisalMetrics:
     scarcity_metric: float     # S: Scarcity Metric
     demand_vector: float       # D: Demand Vector
 
+
 @dataclass
 class AppraisalParams:
     """Container for appraisal signature parameters to satisfy Pylint."""
     asset_hash: bytes
     price_eit_wei: int
     estimated_tokens: int
-    ipfs_cid: str
+    ipfsCID: str  # pylint: disable=invalid-name
     creator_address: str
     nonce: int
     expiry_seconds: int = 3600
+
 
 class AppraisalEngine:
     """
@@ -121,7 +123,7 @@ class AppraisalEngine:
             "assetHash": params.asset_hash,
             "price": params.price_eit_wei,
             "estimatedTokens": params.estimated_tokens,
-            "ipfsCID": params.ipfs_cid,
+            "ipfsCID": params.ipfsCID,
             "nonce": params.nonce,
             "expiry": expiry,
             "creator": params.creator_address,
@@ -208,7 +210,7 @@ def run_engine_example() -> None:
     estimated_tokens = price_eit_wei
     params = AppraisalParams(asset_hash=d_hash, price_eit_wei=price_eit_wei,
                             estimated_tokens=estimated_tokens,
-                            ipfs_cid=os.getenv("IPFS_CID", "QmPK1s3pNYsjnu7wT2L7ck5nS1..."),
+                            ipfsCID=os.getenv("IPFS_CID", "QmPK1s3pNYsjnu7wT2L7ck5nS1..."),
                             creator_address=creator, nonce=int(time.time()))
 
     # pylint: disable=no-value-for-parameter
