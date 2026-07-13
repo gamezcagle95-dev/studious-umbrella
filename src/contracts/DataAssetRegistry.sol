@@ -55,20 +55,32 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard, Pausable {
         _grantRole(SENIOR_INVESTIGATOR_ROLE, _seniorInvestigator);
     }
 
+    /**
+     * @dev Allows the senior investigator to pause or unpause contract operations.
+     * Enforces strict administrative role control.
+     */
     function setPaused(bool _paused) external onlyRole(SENIOR_INVESTIGATOR_ROLE) {
         _paused ? _pause() : _unpause();
     }
 
+    /**
+     * @dev Purchase and unlock a forensic data asset using verified EIP-712 appraisal metrics.
+     * Implements multi-layered guardrails, including replay protection, and on-chain circuit breaker.
+     */
     function purchaseAsset(AssetAppraisal calldata appraisal, bytes calldata signature)
         external
         nonReentrant
         whenNotPaused
     {
+        // Guardrail: Validate that the cryptographic appraisal signature has not expired
         require(block.timestamp <= appraisal.expiry, "Expired");
+
+        // Guardrail: Replay protection by mapping composite creator and nonce keys
         bytes32 nonceKey = keccak256(abi.encodePacked(appraisal.creator, appraisal.nonce));
         require(!usedNonces[nonceKey], "Replay");
         usedNonces[nonceKey] = true;
 
+        // Structured data reconstruction conforming to EIP-712 signing payload blueprint
         bytes32 structHash = keccak256(abi.encode(
             ASSET_APPRAISAL_TYPEHASH,
             appraisal.assetHash,
@@ -80,21 +92,30 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard, Pausable {
             appraisal.creator
         ));
 
+        // Cryptographically recover the signer address using openzeppelin ECDSA recovery utilities
         address recoveredSigner = _hashTypedDataV4(structHash).recover(signature);
+
+        // Assert that the signer possesses the authorized appraiser role permission
         require(hasRole(APPRAISER_ROLE, recoveredSigner), "Unauthorized Appraiser");
 
+        // Circuit Breaker: Programmatic sanitization checks to prevent untrusted manipulation
         if (appraisal.estimatedTokens > 0) {
             uint256 pricePerToken = (appraisal.price * 10**18) / appraisal.estimatedTokens;
             if (pricePerToken > maxPricePerTokenInEIT) {
+                // If a valuation anomaly is detected, trigger the kill-switch and pause operations immediately
                 _pause();
                 emit CircuitBreakerTriggered(appraisal.assetHash, appraisal.price, appraisal.estimatedTokens);
                 return;
             }
         }
 
+        // Check-Effects-Interactions (CEI) state alignment patterns: transfer ERC20 payments securely
         require(paymentToken.transferFrom(msg.sender, appraisal.creator, appraisal.price), "Transfer Failed");
+
+        // Trigger minting of Data NFT in cross-contract setup linking to verified IPFS record
         provenanceRegistry.mintDataNFT(msg.sender, appraisal.ipfsCID);
         
+        // Set state values mapping buyer authorization for the specific data asset hash
         accessGrants[msg.sender][appraisal.assetHash] = true;
         emit AssetUnlocked(appraisal.assetHash, msg.sender, appraisal.price, appraisal.ipfsCID);
     }
