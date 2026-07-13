@@ -141,14 +141,15 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard, Pausable {
             }
         }
 
-        // Token Settlement
+        // Checks-Effects-Interactions: Set local state variable first (Effect)
+        accessGrants[msg.sender][appraisal.assetHash] = true;
+
+        // Interactions: Token Settlement
         require(paymentToken.transferFrom(msg.sender, appraisal.creator, appraisal.price), "Transfer Failed");
 
-        // Programmatic Minting
+        // Interactions: Programmatic Minting
         provenanceRegistry.mintDataNFT(msg.sender, appraisal.ipfsCID);
         
-        // Grant digital access
-        accessGrants[msg.sender][appraisal.assetHash] = true;
         emit AssetUnlocked(appraisal.assetHash, msg.sender, appraisal.price, appraisal.ipfsCID);
     }
 }
