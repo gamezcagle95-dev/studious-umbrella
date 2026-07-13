@@ -14,25 +14,34 @@ def calculate_file_hash(file_path: str, chunk_size: int = 65536) -> str:
     Calculates the SHA-256 hash of a file in chunks to optimize memory.
     This is used for protocol-level consistency across auditing tools.
     """
+    # Initialize the sha256 cryptographic hashing algorithm
     sha256 = hashlib.sha256()
+    # Safely open the specified file in binary read-only mode to prevent decode issues
     with open(file_path, "rb") as file_handle:
         while True:
+            # Read from the file in chunk sizes (default 64KB) to avoid memory footprint spikes
             chunk = file_handle.read(chunk_size)
             if not chunk:
+                # Terminate the loop when the end of file (EOF) is reached
                 break
+            # Update the hash accumulator with the binary data chunk
             sha256.update(chunk)
+    # Return the final calculated SHA-256 hash represented as a hexadecimal string
     return sha256.hexdigest()
 
 def generate_proof_packet(file_path: str, evaluator: str) -> str:
     """
     Generates a cryptographic proof packet for a target file.
     """
+    # Validate file existence before proceeding to hashing and proof construction
     if not os.path.exists(file_path):
         print(f"❌ Error: File not found at {file_path}")
         sys.exit(1)
 
+    # Programmatically calculate the deterministic file hash
     sha256_hash = calculate_file_hash(file_path)
 
+    # Establish an immutable timestamp representing the audit timing
     timestamp = datetime.datetime.now(datetime.timezone.utc)
     proof_packet = {
         "version": "1.0.0",
@@ -43,13 +52,16 @@ def generate_proof_packet(file_path: str, evaluator: str) -> str:
         "status": "STATICALLY_VERIFIED"
     }
 
+    # Ensure the artifact directory for storing formal audit proofs exists
     output_dir = "artifacts/proofs"
     os.makedirs(output_dir, exist_ok=True)
 
+    # Format the timestamp string for a secure, chronologically-ordered file name
     timestamp_str = timestamp.strftime("%Y%m%d%H%M%S")
     output_name = f"proof_{os.path.basename(file_path)}_{timestamp_str}.json"
     output_path = os.path.join(output_dir, output_name)
 
+    # Save the generated proof packet in a human-readable JSON format
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(proof_packet, f, indent=2)
 

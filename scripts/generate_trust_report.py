@@ -37,7 +37,7 @@ except ImportError:
 
 def load_gitignore_patterns(directory_path: str) -> List[str]:
     """Loads and compiles ignore patterns from .gitignore to exclude caches/keys."""
-    patterns = [".git*", "venv/", "node_modules/", "artifacts/", "cache/", "*.key", "*.pem"]
+    patterns = [".git*", "venv/", "node_modules/", "artifacts/", "cache/", "*.key", "*.pem", ".agents/", "agent/"]
     gitignore_path = os.path.join(directory_path, ".gitignore")
 
     if os.path.exists(gitignore_path):
