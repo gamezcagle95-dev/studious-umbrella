@@ -39,6 +39,15 @@ class BaseProtocolsConfig:
     registry_address: str
 
 
+@dataclass
+class MarketConfig:
+    """Stores configuration parameters for the DataAssetRegistry contract."""
+    payment_token: str
+    provenance_registry: str
+    senior_investigator: str
+    max_price_per_token: int
+
+
 def get_env_config() -> EnvConfig:
     """
     Parses and checksums active environment variables from .env.
