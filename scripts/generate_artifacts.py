@@ -1,6 +1,7 @@
 """
 Artifact generation script for Epiphany Protocol smart contracts.
 Compiles Solidity source files and saves the resulting ABI and bytecode to JSON files.
+This script manages compilation of EpiphanyToken, ProvenanceRegistry, and DataAssetRegistry.
 """
 import os
 import json
@@ -22,7 +23,7 @@ def generate_artifacts():
     os.makedirs(output_dir, exist_ok=True)
 
     contract_mapping = {
-        "ProvenanceLedger.sol": "ProvenanceLedger",
+        "EpiphanyToken.sol": "EpiphanyToken",
         "ProvenanceRegistry.sol": "ProvenanceRegistry",
         "DataAssetRegistry.sol": "DataAssetRegistry"
     }
