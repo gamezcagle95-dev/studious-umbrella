@@ -10,5 +10,8 @@ out/
 .openzeppelin/
 .env*
 *.pem
-*.key
+# Do NOT add .npmrc to .gitignore if it contains security-relevant settings.
+# Either keep a committed .npmrc with ignore-scripts=true, or enforce it via
+# package.json's 'scripts.preinstall' hook:
+# "preinstall": "npx only-allow npm"
 .npmrc
