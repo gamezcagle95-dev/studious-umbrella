@@ -8,12 +8,14 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
  * @title ProvenanceRegistry
  * @dev Mints Data NFTs representing cryptographically verified data licenses.
  * Grants the MINTER_ROLE directly to the DataAssetRegistry to trigger programmatic minting.
+ * Reconciled: Retains legacy ledger pointer for compatibility with downstream tools.
  */
 contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     
     uint256 public tokenCount;
     address public dataAssetRegistryAddress;
+    address public legacyLedgerAddress;
 
     // Custom security errors
     error InvalidAddress();
@@ -32,6 +34,7 @@ contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
         _grantRole(MINTER_ROLE, _dataAssetRegistryAddress);
         
         dataAssetRegistryAddress = _dataAssetRegistryAddress;
+        legacyLedgerAddress = _dataAssetRegistryAddress;
     }
 
     /**
