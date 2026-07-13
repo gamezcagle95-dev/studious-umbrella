@@ -1,5 +1,6 @@
 """
 EPIPHANY INTEGRATION VERIFIER - EIT ROYALTY ROUTING SIMULATION
+Streamlined for direct licensing workflow without forensic report overhead.
 """
 import os
 import sys
@@ -9,6 +10,7 @@ from web3 import Web3
 from eth_account import Account
 import solcx
 from scripts.appraisal_engine import AppraisalEngine, AppraisalMetrics, AppraisalParams
+from scripts.shared_compiler import predict_contract_address
 
 # ==============================================================================
 # EPIPHANY INTEGRATION VERIFIER - END-TO-END SYSTEM TEST
@@ -21,12 +23,14 @@ class AuthConfig:
     appraiser_addr: str
     buyer_acc: str
 
+
 @dataclass
 class ProtocolStack:
     """Container for deployed contracts."""
-    ledger: Any
+    token: Any
     registry: Any
     dar: Any
+
 
 @dataclass
 class SecurityTestContext:
@@ -36,6 +40,7 @@ class SecurityTestContext:
     creator_acc: str
     buyer_acc: str
     deployer: str
+
 
 def compile_contract(file_path: str, contract_name: str, node_modules_path: str) -> Dict[str, Any]:
     """Compiles a Solidity contract with OpenZeppelin remappings."""
@@ -64,6 +69,7 @@ def compile_contract(file_path: str, contract_name: str, node_modules_path: str)
 
     return compiled["contracts"][os.path.basename(file_path)][contract_name]
 
+
 def deploy_contract(w3: Web3, data: Dict[str, Any], args: list, deployer: str) -> Any:
     """Deploys a contract and returns the contract instance."""
     contract = w3.eth.contract(abi=data["abi"], bytecode=data["evm"]["bytecode"]["object"])
@@ -71,43 +77,48 @@ def deploy_contract(w3: Web3, data: Dict[str, Any], args: list, deployer: str) -
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
     return w3.eth.contract(address=receipt.contractAddress, abi=data["abi"])
 
+
 def setup_protocol_stack(w3: Web3, deployer: str, node_modules_path: str) -> ProtocolStack:
     """Compiles and deploys the full protocol contract stack."""
     print("⏳ Compiling contracts...")
-    ledger_data = compile_contract("src/contracts/ProvenanceLedger.sol",
-                                 "ProvenanceLedger", node_modules_path)
+    token_data = compile_contract("src/contracts/EpiphanyToken.sol",
+                                 "EpiphanyToken", node_modules_path)
     registry_data = compile_contract("src/contracts/ProvenanceRegistry.sol",
                                    "ProvenanceRegistry", node_modules_path)
     dar_data = compile_contract("src/contracts/DataAssetRegistry.sol",
                               "DataAssetRegistry", node_modules_path)
 
     print("⏳ Deploying Protocol Stack...")
-    ledger = deploy_contract(w3, ledger_data, [deployer], deployer)
-    registry = deploy_contract(w3, registry_data, [ledger.address], deployer)
-    max_price_per_token = 100 * 10**18
-    dar = deploy_contract(w3, dar_data, [ledger.address, registry.address, deployer, max_price_per_token], deployer)
+    # Get current nonce to predict DataAssetRegistry address
+    nonce = w3.eth.get_transaction_count(deployer)
+    token = deploy_contract(w3, token_data, [deployer], deployer)
 
-    return ProtocolStack(ledger, registry, dar)
+    # Predict DataAssetRegistry address (will be deployed next after ProvenanceRegistry)
+    predicted_dar_address = predict_contract_address(deployer, nonce + 2)
+    registry = deploy_contract(w3, registry_data, [predicted_dar_address], deployer)
+
+    max_price_per_token = 100 * 10**18
+    dar = deploy_contract(w3, dar_data, [token.address, registry.address, deployer, max_price_per_token], deployer)
+
+    return ProtocolStack(token, registry, dar)
+
 
 def configure_authorizations(w3: Web3, stack: ProtocolStack, config: AuthConfig) -> None:
     """Configures roles, appraiser authorizations, and initial funding."""
     print("⏳ Configuring roles and authorizations...")
-    minter_role_bytes = w3.keccak(text="MINTER_ROLE")
-    stack.registry.functions.grantRole(minter_role_bytes, stack.dar.address).transact(
-        {"from": config.deployer})
+
+    # Grant APPRAISER_ROLE to our appraisal engine wallet
     appraiser_role_bytes = w3.keccak(text="APPRAISER_ROLE")
     stack.dar.functions.grantRole(appraiser_role_bytes, config.appraiser_addr).transact(
         {"from": config.deployer})
 
-    report_id = w3.keccak(text="initial_funding")
-    stack.ledger.functions.anchorIntelligenceReport(
-        report_id, 1000000 * 10**18, "QmInitialFunding").transact(
-        {"from": config.buyer_acc})
-    stack.ledger.functions.verifyIntelligenceReport(report_id).transact({"from": config.deployer})
-    stack.ledger.functions.claimCredits().transact({"from": config.buyer_acc})
+    # Fund the buyer with EIT tokens directly from the deployer (who holds the initial supply)
+    stack.token.functions.transfer(config.buyer_acc, 50000 * 10**18).transact(
+        {"from": config.deployer})
 
-    buyer_balance = stack.ledger.functions.balanceOf(config.buyer_acc).call()
+    buyer_balance = stack.token.functions.balanceOf(config.buyer_acc).call()
     print(f"✓ Buyer funded with {buyer_balance / 10**18} EIT tokens.")
+
 
 def perform_appraisal(engine: AppraisalEngine, creator_acc: str,
                      raw_data: str) -> Tuple[Dict[str, Any], float, bytes]:
@@ -122,12 +133,13 @@ def perform_appraisal(engine: AppraisalEngine, creator_acc: str,
         asset_hash=data_hash,
         price_eit_wei=price,
         estimated_tokens=estimated_tokens,
-        ipfs_cid="QmTest123456789",
+        ipfsCID="QmTest123456789",
         creator_address=creator_acc,
         nonce=1
     )
     appraisal_result = engine.generate_appraisal_signature(params)
     return appraisal_result, valuation_usd, data_hash
+
 
 def check_outcomes(stack: ProtocolStack, buyer_acc: str, data_hash: bytes,
                   app_res: Dict[str, Any]) -> None:
@@ -135,7 +147,7 @@ def check_outcomes(stack: ProtocolStack, buyer_acc: str, data_hash: bytes,
     print("⏳ Verifying outcomes...")
     has_access = stack.dar.functions.accessGrants(buyer_acc, data_hash).call()
     nft_bal = stack.registry.functions.balanceOf(buyer_acc).call()
-    creator_bal = stack.ledger.functions.balanceOf(app_res["appraisal"]["creator"]).call()
+    creator_bal = stack.token.functions.balanceOf(app_res["appraisal"]["creator"]).call()
 
     print(f"✓ Access Grant: {has_access}, NFT Balance: {nft_bal}")
     print(f"✓ Creator EIT Balance: {creator_bal / 10**18} tokens")
@@ -145,6 +157,7 @@ def check_outcomes(stack: ProtocolStack, buyer_acc: str, data_hash: bytes,
     else:
         print("❌ VERIFICATION FAILED")
         sys.exit(1)
+
 
 def setup_test_env() -> Tuple[Web3, str, str, str, Account]:
     """Sets up the test environment: w3, accounts, and solc."""
@@ -161,6 +174,7 @@ def setup_test_env() -> Tuple[Web3, str, str, str, Account]:
     solcx.set_solc_version("0.8.26")
     return w3, deployer, creator_acc, buyer_acc, app_acc
 
+
 def test_security_features(ctx: SecurityTestContext) -> None:
     """Tests off-chain guardrails and on-chain circuit breakers."""
     print("\n🛡️ Testing Security Features...")
@@ -176,13 +190,13 @@ def test_security_features(ctx: SecurityTestContext) -> None:
         asset_hash=huge_price_app["appraisal"]["assetHash"],
         price_eit_wei=huge_price_app["appraisal"]["price"],
         estimated_tokens=huge_price_app["appraisal"]["estimatedTokens"],
-        ipfs_cid=huge_price_app["appraisal"]["ipfsCID"],
+        ipfsCID=huge_price_app["appraisal"]["ipfsCID"],
         creator_address=huge_price_app["appraisal"]["creator"],
         nonce=2
     )
     huge_signed = ctx.engine.generate_appraisal_signature(huge_params)
     try:
-        ctx.stack.ledger.functions.approve(ctx.stack.dar.address, 2000 * 10**18).transact(
+        ctx.stack.token.functions.approve(ctx.stack.dar.address, 2000 * 10**18).transact(
             {"from": ctx.buyer_acc})
         ctx.stack.dar.functions.purchaseAsset(
             (huge_signed["appraisal"]["assetHash"], huge_signed["appraisal"]["price"],
@@ -204,6 +218,7 @@ def test_security_features(ctx: SecurityTestContext) -> None:
         # Reverting circuit breaker pattern
         print("✅ On-chain circuit breaker blocked huge price successfully (revert).")
 
+
 def run_royalty_routing_simulation(w3: Web3, stack: ProtocolStack,
                                   appraisal_result: Dict[str, Any], buyer_acc: str) -> None:
     """
@@ -211,7 +226,7 @@ def run_royalty_routing_simulation(w3: Web3, stack: ProtocolStack,
     """
     print("\n🔄 Phase 1: Token Authorization...")
     price = appraisal_result["appraisal"]["price"]
-    tx_hash = stack.ledger.functions.approve(stack.dar.address, price).transact(
+    tx_hash = stack.token.functions.approve(stack.dar.address, price).transact(
         {"from": buyer_acc})
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
     print(f"✅ EIT Approve Successful! Hash: {receipt.transactionHash.hex()}")
@@ -231,7 +246,7 @@ def run_royalty_routing_simulation(w3: Web3, stack: ProtocolStack,
     print(f"✅ Settlement Successful! Hash: {receipt.transactionHash.hex()}")
 
     # Verify Transfer event
-    logs = stack.ledger.events.Transfer().process_receipt(receipt)
+    logs = stack.token.events.Transfer().process_receipt(receipt)
     if any(log['args']['to'] == app_res["creator"] for log in logs):
         print(f"✓ Royalty routed correctly to creator: {app_res['creator']}")
 
@@ -239,6 +254,7 @@ def run_royalty_routing_simulation(w3: Web3, stack: ProtocolStack,
     nft_logs = stack.registry.events.DataNFTMinted().process_receipt(receipt)
     if any(log['args']['creator'] == buyer_acc for log in nft_logs):
         print(f"✓ Data NFT minted successfully for buyer: {buyer_acc}")
+
 
 def verify_integration() -> None:
     """Main integration verification logic."""
@@ -265,6 +281,7 @@ def verify_integration() -> None:
     test_security_features(sec_ctx)
 
     print("\n✨ INTEGRATION AND SECURITY VERIFIED SUCCESSFULLY ✨\n")
+
 
 if __name__ == "__main__":
     verify_integration()

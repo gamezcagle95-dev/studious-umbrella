@@ -6,14 +6,14 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
  * @title ProvenanceRegistry
- * @dev Mints Data NFTs representing verified forensic assets. 
- * Reconciled: Retains legacy ledger pointer for test compatibility with modern security errors.
+ * @dev Mints Data NFTs representing cryptographically verified data licenses.
+ * Grants the MINTER_ROLE directly to the DataAssetRegistry to trigger programmatic minting.
  */
 contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     
     uint256 public tokenCount;
-    address public legacyLedgerAddress;
+    address public dataAssetRegistryAddress;
 
     // Custom security errors
     error InvalidAddress();
@@ -21,20 +21,22 @@ contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
     event DataNFTMinted(uint256 indexed tokenId, string ipfsCID, address indexed creator);
 
     /**
-     * @param _ledgerAddress Legacy address to ensure existing tests do not break.
+     * @dev Initializes the ERC-721 token and grants roles.
+     * @param _dataAssetRegistryAddress The address of the DataAssetRegistry contract that is allowed to mint tokens.
      */
-    constructor(address _ledgerAddress) ERC721("Epiphany Data Asset", "EDA") {
-        if (_ledgerAddress == address(0)) revert InvalidAddress();
+    constructor(address _dataAssetRegistryAddress) ERC721("Epiphany Data Asset", "EDA") {
+        if (_dataAssetRegistryAddress == address(0)) revert InvalidAddress();
         
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
-        _grantRole(MINTER_ROLE, _ledgerAddress);
+        _grantRole(MINTER_ROLE, _dataAssetRegistryAddress);
         
-        legacyLedgerAddress = _ledgerAddress;
+        dataAssetRegistryAddress = _dataAssetRegistryAddress;
     }
 
     /**
      * @dev Mints a secure token pointer linking to a verified off-chain dataset.
+     * Restricted to MINTER_ROLE (such as the DataAssetRegistry).
      * @param recipient The wallet address receiving the token.
      * @param ipfsCID The immutable IPFS CID of the encrypted data file.
      * @return The unique uint256 ID of the minted data token.

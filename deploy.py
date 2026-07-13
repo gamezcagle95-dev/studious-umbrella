@@ -1,9 +1,9 @@
 """
 deploy.py - Epiphany Protocol Smart Contract Compiler and Deployer
 
-Programmatically deploys the full protocol stack (ProvenanceLedger, ProvenanceRegistry,
-and DataAssetRegistry), configures on-chain AccessControl roles, and writes
-verified deployed contract addresses to public/settlement.json.
+Programmatically deploys the full protocol stack (EpiphanyToken, ProvenanceRegistry,
+and DataAssetRegistry) with direct minter role assignment to resolve forensic bounty dependencies.
+Writes verified deployed contract addresses to public/settlement.json.
 """
 
 import os
@@ -15,6 +15,7 @@ from web3 import Web3
 from web3.exceptions import TransactionNotFound
 from eth_account import Account
 from dotenv import load_dotenv
+from scripts.shared_compiler import predict_contract_address
 
 load_dotenv()
 
@@ -28,13 +29,13 @@ class EnvConfig:
     chain_id: int
     private_key: str
     deployer_address: str
-    senior_investigator: str
+    admin_address: str
 
 
 @dataclass
 class BaseProtocolsConfig:
     """Stores the deployed contract addresses of our base protocol layer."""
-    ledger_address: str
+    token_address: str
     registry_address: str
 
 
@@ -69,15 +70,15 @@ def get_env_config() -> EnvConfig:
         print(f"[Wurk] Error: Invalid private key format: {err}", file=sys.stderr)
         sys.exit(1)
 
-    senior_investigator = os.getenv("SENIOR_INVESTIGATOR_ADDRESS", str(deployer_address))
-    checksummed_investigator = Web3.to_checksum_address(senior_investigator)
+    admin_address_env = os.getenv("SENIOR_INVESTIGATOR_ADDRESS", str(deployer_address))
+    checksummed_admin = Web3.to_checksum_address(admin_address_env)
 
     return EnvConfig(
         rpc_url=rpc_url,
         chain_id=chain_id,
         private_key=private_key,
         deployer_address=deployer_address,
-        senior_investigator=checksummed_investigator
+        admin_address=checksummed_admin
     )
 
 
@@ -116,12 +117,12 @@ def build_eip1559_transaction(w3: Web3, tx_params: Dict[str, Any]) -> Dict[str, 
 
 
 def deploy_base_protocols(w3: Web3, env: EnvConfig) -> BaseProtocolsConfig:
-    """Deploys ProvenanceLedger and ProvenanceRegistry sequentially."""
+    """Deploys EpiphanyToken and ProvenanceRegistry sequentially."""
     nonce = w3.eth.get_transaction_count(env.deployer_address)
 
-    # 1. Deploy ProvenanceLedger (EIT Payment Token)
-    print("[Wurk] Deploying ProvenanceLedger...")
-    artifact = load_compiled_artifact("ProvenanceLedger")
+    # 1. Deploy EpiphanyToken (Standard EIT Payment Token)
+    print("[Wurk] Deploying EpiphanyToken...")
+    artifact = load_compiled_artifact("EpiphanyToken")
     contract = w3.eth.contract(abi=artifact["abi"], bytecode=artifact["bytecode"])
 
     tx_params = build_eip1559_transaction(w3, {
@@ -129,14 +130,18 @@ def deploy_base_protocols(w3: Web3, env: EnvConfig) -> BaseProtocolsConfig:
         "from": env.deployer_address,
         "nonce": nonce
     })
-    construct_tx = contract.constructor(env.senior_investigator).build_transaction(tx_params)
+    construct_tx = contract.constructor(env.admin_address).build_transaction(tx_params)
     signed_tx = w3.eth.account.sign_transaction(construct_tx, private_key=env.private_key)
     tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-    ledger_address = receipt.contractAddress
-    print(f"[Wurk] ProvenanceLedger deployed successfully to: {ledger_address}")
+    token_address = receipt.contractAddress
+    print(f"[Wurk] EpiphanyToken deployed successfully to: {token_address}")
     nonce += 1
+
+    # Predict DataAssetRegistry address (will be deployed at nonce + 1)
+    predicted_dar_address = predict_contract_address(env.deployer_address, nonce + 1)
+    print(f"[Wurk] Predicted DataAssetRegistry address: {predicted_dar_address}")
 
     # 2. Deploy ProvenanceRegistry (Minter Registry)
     print("[Wurk] Deploying ProvenanceRegistry...")
@@ -148,7 +153,7 @@ def deploy_base_protocols(w3: Web3, env: EnvConfig) -> BaseProtocolsConfig:
         "from": env.deployer_address,
         "nonce": nonce
     })
-    construct_tx = contract.constructor(ledger_address).build_transaction(tx_params)
+    construct_tx = contract.constructor(predicted_dar_address).build_transaction(tx_params)
     signed_tx = w3.eth.account.sign_transaction(construct_tx, private_key=env.private_key)
     tx_hash = w3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
@@ -157,7 +162,7 @@ def deploy_base_protocols(w3: Web3, env: EnvConfig) -> BaseProtocolsConfig:
     print(f"[Wurk] ProvenanceRegistry deployed successfully to: {registry_address}")
 
     return BaseProtocolsConfig(
-        ledger_address=ledger_address,
+        token_address=token_address,
         registry_address=registry_address
     )
 
@@ -178,9 +183,9 @@ def deploy_market_clearinghouse(w3: Web3, env: EnvConfig, base: BaseProtocolsCon
     })
 
     construct_tx = contract.constructor(
-        base.ledger_address,
+        base.token_address,
         base.registry_address,
-        env.senior_investigator,
+        env.admin_address,
         max_price_per_token
     ).build_transaction(tx_params)
 
@@ -192,34 +197,20 @@ def deploy_market_clearinghouse(w3: Web3, env: EnvConfig, base: BaseProtocolsCon
     return receipt.contractAddress
 
 
-def delegate_minter_role(w3: Web3, env: EnvConfig, base: BaseProtocolsConfig,
-                         dar_address: str) -> None:
-    """Grants the MINTER_ROLE on ProvenanceRegistry to the DataAssetRegistry address."""
-    nonce = w3.eth.get_transaction_count(env.deployer_address)
+def delegate_minter_role(w3: Web3, base: BaseProtocolsConfig, dar_address: str) -> None:
+    """
+    Validates that the DataAssetRegistry address has been correctly assigned
+    as MINTER_ROLE on ProvenanceRegistry contract.
+    """
     registry_artifact = load_compiled_artifact("ProvenanceRegistry")
     registry_instance = w3.eth.contract(address=base.registry_address, abi=registry_artifact["abi"])
 
     minter_role_hash = Web3.keccak(text="MINTER_ROLE")
+    has_role = registry_instance.functions.hasRole(minter_role_hash, dar_address).call()
 
-    tx_params = build_eip1559_transaction(w3, {
-        "chainId": env.chain_id,
-        "from": env.deployer_address,
-        "nonce": nonce
-    })
-
-    grant_tx = registry_instance.functions.grantRole(
-        minter_role_hash,
-        dar_address
-    ).build_transaction(tx_params)
-
-    signed_grant_tx = w3.eth.account.sign_transaction(grant_tx, private_key=env.private_key)
-    grant_hash = w3.eth.send_raw_transaction(signed_grant_tx.raw_transaction)
-
-    # Wait for the receipt and assert success status explicitly (Resolves silent fail bug)
-    receipt = w3.eth.wait_for_transaction_receipt(grant_hash)
-    if receipt.status != 1:
-        raise RuntimeError(f"AccessControl role-grant transaction failed: {grant_hash.hex()}")
-    print(f"[Wurk] Successfully granted MINTER_ROLE on Registry to DAR. Hash: {grant_hash.hex()}")
+    if not has_role:
+        raise RuntimeError(f"DataAssetRegistry {dar_address} lacks MINTER_ROLE on ProvenanceRegistry!")
+    print("[Wurk] Verified that DataAssetRegistry has MINTER_ROLE on ProvenanceRegistry.")
 
 
 def run_deployment_loop() -> None:
@@ -258,13 +249,13 @@ def run_deployment_loop() -> None:
     base_config = deploy_base_protocols(w3, env)
     dar_address = deploy_market_clearinghouse(w3, env, base_config)
 
-    # 3. Grant Minter Roles
-    delegate_minter_role(w3, env, base_config, dar_address)
+    # 3. Validate Minter Roles
+    delegate_minter_role(w3, base_config, dar_address)
 
     # 4. Write verified addresses to manifest using the nested JSON format
     address_manifest = {
         "contracts": {
-            "Intelligence_Ledger": base_config.ledger_address,
+            "Intelligence_Ledger": base_config.token_address,
             "Provenance_Registry": base_config.registry_address,
             "Data_Asset_Registry": dar_address
         }
