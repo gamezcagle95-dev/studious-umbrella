@@ -23,18 +23,17 @@ contract ProvenanceRegistry is ERC721URIStorage, AccessControl {
     event DataNFTMinted(uint256 indexed tokenId, string ipfsCID, address indexed creator);
 
     /**
-     * @dev Initializes the ERC-721 token and grants roles.
-     * @param _dataAssetRegistryAddress The address of the DataAssetRegistry contract that is allowed to mint tokens.
+     * @param _ledgerAddress Legacy address to ensure existing tests do not break.
      */
-    constructor(address _dataAssetRegistryAddress) ERC721("Epiphany Data Asset", "EDA") {
-        if (_dataAssetRegistryAddress == address(0)) revert InvalidAddress();
+    constructor(address _ledgerAddress) ERC721("Epiphany Data Asset", "EDA") {
+        if (_ledgerAddress == address(0)) revert InvalidAddress();
         
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
-        _grantRole(MINTER_ROLE, _dataAssetRegistryAddress);
+        _grantRole(MINTER_ROLE, _ledgerAddress);
         
-        dataAssetRegistryAddress = _dataAssetRegistryAddress;
-        legacyLedgerAddress = _dataAssetRegistryAddress;
+        legacyLedgerAddress = _ledgerAddress;
+        dataAssetRegistryAddress = _ledgerAddress;
     }
 
     /**
