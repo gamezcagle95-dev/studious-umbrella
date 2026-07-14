@@ -1,31 +1,32 @@
 """
-End-to-end integration verification for the Epiphany Protocol stack.
-Tests contract deployment, appraisal engine signatures, and settlement logic.
+EPIPHANY INTEGRATION VERIFIER - EIT ROYALTY ROUTING SIMULATION
 """
-
 import os
 import sys
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Tuple, Dict
 from web3 import Web3
 from eth_account import Account
 import solcx
 from scripts.appraisal_engine import AppraisalEngine, AppraisalMetrics, AppraisalParams
-from scripts.shared_compiler import get_compiled_contracts
 
-@dataclass
-class ProtocolStack:
-    """Container for deployed protocol contract instances."""
-    ledger: Any
-    registry: Any
-    dar: Any
+# ==============================================================================
+# EPIPHANY INTEGRATION VERIFIER - END-TO-END SYSTEM TEST
+# ==============================================================================
 
 @dataclass
 class AuthConfig:
-    """Container for authorization test parameters."""
+    """Container for authorization configuration."""
     deployer: str
     appraiser_addr: str
     buyer_acc: str
+
+@dataclass
+class ProtocolStack:
+    """Container for deployed contracts."""
+    ledger: Any
+    registry: Any
+    dar: Any
 
 @dataclass
 class SecurityTestContext:
@@ -36,36 +37,75 @@ class SecurityTestContext:
     buyer_acc: str
     deployer: str
 
-def deploy_contract(w3, data, args, deployer):
+def compile_contract(file_path: str, contract_name: str, node_modules_path: str) -> Dict[str, Any]:
+    """Compiles a Solidity contract with OpenZeppelin remappings."""
+    # Read the Solidity source code contents from the filesystem securely
+    with open(file_path, "r", encoding="utf-8") as f:
+        source = f.read()
+
+    # Configure standard compilation parameters with Cancun/OZ remappings
+    settings = {
+        "outputSelection": {"*": {"*": ["abi", "evm.bytecode.object"]}},
+        "remappings": [
+            f"@openzeppelin/={node_modules_path}/@openzeppelin/"
+        ]
+    }
+
+    # Execute py-solc-x compilation with explicit parameters
+    compiled = solcx.compile_standard({
+        "language": "Solidity",
+        "sources": {os.path.basename(file_path): {"content": source}},
+        "settings": settings
+    }, allow_paths=node_modules_path)
+
+    # Clean compile diagnostics check block
+    if "errors" in compiled:
+        for error in compiled["errors"]:
+            if error["severity"] == "error":
+                print(f"❌ Compilation Error: {error['message']}")
+        if any(e["severity"] == "error" for e in compiled["errors"]):
+            sys.exit(1)
+
+    return compiled["contracts"][os.path.basename(file_path)][contract_name]
+
+def deploy_contract(w3: Web3, data: Dict[str, Any], args: list, deployer: str) -> Any:
     """Deploys a contract and returns the contract instance."""
+    # Construct contract representation using ABI and compiled bytecode object
     contract = w3.eth.contract(abi=data["abi"], bytecode=data["evm"]["bytecode"]["object"])
+    # Issue transaction and wait for transaction receipt confirmation
     tx_hash = contract.constructor(*args).transact({"from": deployer})
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+    # Instantiate and return contract with its finalized on-chain address mapping
     return w3.eth.contract(address=receipt.contractAddress, abi=data["abi"])
 
-def setup_protocol_stack(w3, deployer, node_modules_path):
+def setup_protocol_stack(w3: Web3, deployer: str, node_modules_path: str) -> ProtocolStack:
     """Compiles and deploys the full protocol contract stack."""
     print("⏳ Compiling contracts...")
-    compiled_sol = get_compiled_contracts(node_modules_path)
-
-    ledger_data = compiled_sol["contracts"]["ProvenanceLedger.sol"]["ProvenanceLedger"]
-    registry_data = compiled_sol["contracts"]["ProvenanceRegistry.sol"]["ProvenanceRegistry"]
-    dar_data = compiled_sol["contracts"]["DataAssetRegistry.sol"]["DataAssetRegistry"]
+    # Step-by-step compilation of entire Solidity contract family
+    ledger_data = compile_contract("src/contracts/ProvenanceLedger.sol",
+                                 "ProvenanceLedger", node_modules_path)
+    registry_data = compile_contract("src/contracts/ProvenanceRegistry.sol",
+                                   "ProvenanceRegistry", node_modules_path)
+    dar_data = compile_contract("src/contracts/DataAssetRegistry.sol",
+                              "DataAssetRegistry", node_modules_path)
 
     print("⏳ Deploying Protocol Stack...")
+    # Deploy ledger first, then the registry linked to ledger, then data registry
     ledger = deploy_contract(w3, ledger_data, [deployer], deployer)
     registry = deploy_contract(w3, registry_data, [ledger.address], deployer)
-    dar = deploy_contract(w3, dar_data, [ledger.address, registry.address], deployer)
+    max_price_per_token = 100 * 10**18
+    dar = deploy_contract(w3, dar_data, [ledger.address, registry.address, deployer, max_price_per_token], deployer)
 
     return ProtocolStack(ledger, registry, dar)
 
-def configure_authorizations(w3, stack, config: AuthConfig):
+def configure_authorizations(w3: Web3, stack: ProtocolStack, config: AuthConfig) -> None:
     """Configures roles, appraiser authorizations, and initial funding."""
     print("⏳ Configuring roles and authorizations...")
     minter_role_bytes = w3.keccak(text="MINTER_ROLE")
     stack.registry.functions.grantRole(minter_role_bytes, stack.dar.address).transact(
         {"from": config.deployer})
-    stack.dar.functions.setAppraiser(config.appraiser_addr, True).transact(
+    appraiser_role_bytes = w3.keccak(text="APPRAISER_ROLE")
+    stack.dar.functions.grantRole(appraiser_role_bytes, config.appraiser_addr).transact(
         {"from": config.deployer})
 
     report_id = w3.keccak(text="initial_funding")
@@ -78,19 +118,28 @@ def configure_authorizations(w3, stack, config: AuthConfig):
     buyer_balance = stack.ledger.functions.balanceOf(config.buyer_acc).call()
     print(f"✓ Buyer funded with {buyer_balance / 10**18} EIT tokens.")
 
-def perform_appraisal(engine, creator_acc, raw_data):
+def perform_appraisal(engine: AppraisalEngine, creator_acc: str,
+                     raw_data: str) -> Tuple[Dict[str, Any], float, bytes]:
     """Performs the appraisal and returns the result."""
     data_hash = Web3.keccak(text=raw_data)
     metrics = AppraisalMetrics(base_cost=500.0, information_density=1.5,
                               scarcity_metric=2.0, demand_vector=1.2)
     valuation_usd = engine.calculate_valuation(metrics, raw_data)
     price = engine.usd_to_eit_wei(valuation_usd)
-    params = AppraisalParams(data_hash=data_hash, price_eit_wei=price,
-                            ipfs_cid="QmTest123456789", creator_address=creator_acc, nonce=1)
+    estimated_tokens = price
+    params = AppraisalParams(
+        asset_hash=data_hash,
+        price_eit_wei=price,
+        estimated_tokens=estimated_tokens,
+        ipfs_cid="QmTest123456789",
+        creator_address=creator_acc,
+        nonce=1
+    )
     appraisal_result = engine.generate_appraisal_signature(params)
     return appraisal_result, valuation_usd, data_hash
 
-def check_outcomes(stack, buyer_acc, data_hash, app_res):
+def check_outcomes(stack: ProtocolStack, buyer_acc: str, data_hash: bytes,
+                  app_res: Dict[str, Any]) -> None:
     """Verifies the final state of the blockchain after purchase."""
     print("⏳ Verifying outcomes...")
     has_access = stack.dar.functions.accessGrants(buyer_acc, data_hash).call()
@@ -106,11 +155,13 @@ def check_outcomes(stack, buyer_acc, data_hash, app_res):
         print("❌ VERIFICATION FAILED")
         sys.exit(1)
 
-def setup_test_env():
+def setup_test_env() -> Tuple[Web3, str, str, str, Account]:
     """Sets up the test environment: w3, accounts, and solc."""
     w3 = Web3(Web3.EthereumTesterProvider())
-    # pylint: disable=unbalanced-tuple-unpacking
-    deployer, creator_acc, buyer_acc = w3.eth.accounts[0:3]
+    accounts = w3.eth.accounts
+    deployer = accounts[0]
+    creator_acc = accounts[1]
+    buyer_acc = accounts[2]
     # pylint: disable=no-value-for-parameter
     app_acc = Account.create()
 
@@ -119,7 +170,7 @@ def setup_test_env():
     solcx.set_solc_version("0.8.26")
     return w3, deployer, creator_acc, buyer_acc, app_acc
 
-def test_security_features(ctx: SecurityTestContext):
+def test_security_features(ctx: SecurityTestContext) -> None:
     """Tests off-chain guardrails and on-chain circuit breakers."""
     print("\n🛡️ Testing Security Features...")
     noise_data = os.urandom(100).decode('latin1')
@@ -127,12 +178,13 @@ def test_security_features(ctx: SecurityTestContext):
     if val == 0:
         print("✅ Off-chain guardrail rejected noise successfully.")
 
-    ctx.stack.dar.functions.setMaxPricePerAsset(1000 * 10**18).transact({"from": ctx.deployer})
     huge_price_app, _, _ = perform_appraisal(ctx.engine, ctx.creator_acc, "Legit data")
     huge_price_app["appraisal"]["price"] = 2000 * 10**18
+    huge_price_app["appraisal"]["estimatedTokens"] = 10**18
     huge_params = AppraisalParams(
-        data_hash=huge_price_app["appraisal"]["dataHash"],
+        asset_hash=huge_price_app["appraisal"]["assetHash"],
         price_eit_wei=huge_price_app["appraisal"]["price"],
+        estimated_tokens=huge_price_app["appraisal"]["estimatedTokens"],
         ipfs_cid=huge_price_app["appraisal"]["ipfsCID"],
         creator_address=huge_price_app["appraisal"]["creator"],
         nonce=2
@@ -142,16 +194,27 @@ def test_security_features(ctx: SecurityTestContext):
         ctx.stack.ledger.functions.approve(ctx.stack.dar.address, 2000 * 10**18).transact(
             {"from": ctx.buyer_acc})
         ctx.stack.dar.functions.purchaseAsset(
-            (huge_signed["appraisal"]["dataHash"], huge_signed["appraisal"]["price"],
+            (huge_signed["appraisal"]["assetHash"], huge_signed["appraisal"]["price"],
+             huge_signed["appraisal"]["estimatedTokens"],
              huge_signed["appraisal"]["ipfsCID"], huge_signed["appraisal"]["nonce"],
              huge_signed["appraisal"]["expiry"], huge_signed["appraisal"]["creator"]),
             bytes.fromhex(huge_signed["signature"])
         ).transact({"from": ctx.buyer_acc})
-        print("❌ On-chain circuit breaker failed to block huge price.")
-    except Exception: # pylint: disable=broad-exception-caught
-        print("✅ On-chain circuit breaker blocked huge price successfully.")
 
-def run_royalty_routing_simulation(w3, stack, appraisal_result, buyer_acc):
+        # Non-reverting circuit breaker pattern: Verify that the contract was paused and the purchase was blocked
+        is_paused = ctx.stack.dar.functions.paused().call()
+        has_access = ctx.stack.dar.functions.accessGrants(ctx.buyer_acc, huge_signed["appraisal"]["assetHash"]).call()
+        if is_paused and not has_access:
+            print("✅ On-chain circuit breaker blocked huge price and paused successfully (non-reverting return).")
+        else:
+            print("❌ On-chain circuit breaker failed to block huge price.")
+            sys.exit(1)
+    except Exception:  # pylint: disable=broad-exception-caught
+        # Reverting circuit breaker pattern
+        print("✅ On-chain circuit breaker blocked huge price successfully (revert).")
+
+def run_royalty_routing_simulation(w3: Web3, stack: ProtocolStack,
+                                  appraisal_result: Dict[str, Any], buyer_acc: str) -> None:
     """
     Executes the EIT Royalty Routing Simulation.
     """
@@ -165,8 +228,8 @@ def run_royalty_routing_simulation(w3, stack, appraisal_result, buyer_acc):
     print("\n🔄 Phase 2: Settlement Transfer...")
     app_res = appraisal_result["appraisal"]
     appraisal_payload = (
-        app_res["dataHash"], app_res["price"], app_res["ipfsCID"],
-        app_res["nonce"], app_res["expiry"], app_res["creator"]
+        app_res["assetHash"], app_res["price"], app_res["estimatedTokens"],
+        app_res["ipfsCID"], app_res["nonce"], app_res["expiry"], app_res["creator"]
     )
     sig_hex = appraisal_result["signature"]
     signature = bytes.fromhex(sig_hex[2:]) if sig_hex.startswith("0x") else bytes.fromhex(sig_hex)
@@ -177,18 +240,16 @@ def run_royalty_routing_simulation(w3, stack, appraisal_result, buyer_acc):
     print(f"✅ Settlement Successful! Hash: {receipt.transactionHash.hex()}")
 
     # Verify Transfer event
-    # pylint: disable=no-value-for-parameter
     logs = stack.ledger.events.Transfer().process_receipt(receipt)
     if any(log['args']['to'] == app_res["creator"] for log in logs):
         print(f"✓ Royalty routed correctly to creator: {app_res['creator']}")
 
     print("\n🔄 Phase 3: Minter Delegation...")
-    # pylint: disable=no-value-for-parameter
     nft_logs = stack.registry.events.DataNFTMinted().process_receipt(receipt)
     if any(log['args']['creator'] == buyer_acc for log in nft_logs):
         print(f"✓ Data NFT minted successfully for buyer: {buyer_acc}")
 
-def verify_integration():
+def verify_integration() -> None:
     """Main integration verification logic."""
     print("🧪 Starting End-to-End Integration Verification...")
     w3, deployer, creator_acc, buyer_acc, app_acc = setup_test_env()

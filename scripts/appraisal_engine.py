@@ -7,6 +7,7 @@ import time
 import math
 from collections import Counter
 from dataclasses import dataclass
+from typing import Any, Dict
 from eth_account import Account
 from eth_account.messages import encode_typed_data
 from web3 import Web3
@@ -33,8 +34,9 @@ class AppraisalMetrics:
 @dataclass
 class AppraisalParams:
     """Container for appraisal signature parameters to satisfy Pylint."""
-    data_hash: bytes
+    asset_hash: bytes
     price_eit_wei: int
+    estimated_tokens: int
     ipfs_cid: str
     creator_address: str
     nonce: int
@@ -44,11 +46,12 @@ class AppraisalEngine:
     """
     Engine for calculating data asset value and generating cryptographic signatures.
     """
-    def __init__(self, appraiser_private_key, chain_id, contract_address):
+    def __init__(self, appraiser_private_key: str, chain_id: int,
+                 contract_address: str) -> None:
         # pylint: disable=no-value-for-parameter
         self.account = Account.from_key(appraiser_private_key)
         self.chain_id = chain_id
-        self.contract_address = contract_address
+        self.contract_address = Web3.to_checksum_address(contract_address)
 
     @staticmethod
     def calculate_entropy(data: str) -> float:
@@ -86,7 +89,7 @@ class AppraisalEngine:
         eit_amount = usd_value * USD_TO_EIT_RATE
         return int(eit_amount * (10 ** EIT_DECIMALS))
 
-    def generate_appraisal_signature(self, params: AppraisalParams):
+    def generate_appraisal_signature(self, params: AppraisalParams) -> Dict[str, Any]:
         """
         Generates an EIP-712 structured signature for the appraisal.
         """
@@ -102,9 +105,10 @@ class AppraisalEngine:
 
         # EIP-712 Types
         message_types = {
-            "Appraisal": [
-                {"name": "dataHash", "type": "bytes32"},
+            "AssetAppraisal": [
+                {"name": "assetHash", "type": "bytes32"},
                 {"name": "price", "type": "uint256"},
+                {"name": "estimatedTokens", "type": "uint256"},
                 {"name": "ipfsCID", "type": "string"},
                 {"name": "nonce", "type": "uint256"},
                 {"name": "expiry", "type": "uint256"},
@@ -114,8 +118,9 @@ class AppraisalEngine:
 
         # The Appraisal Payload
         appraisal_data = {
-            "dataHash": params.data_hash,
+            "assetHash": params.asset_hash,
             "price": params.price_eit_wei,
+            "estimatedTokens": params.estimated_tokens,
             "ipfsCID": params.ipfs_cid,
             "nonce": params.nonce,
             "expiry": expiry,
@@ -136,16 +141,44 @@ class AppraisalEngine:
             "signature": signed_message.signature.hex()
         }
 
-def run_engine_example():
+def resolve_data_asset_registry_address() -> str:
+    """
+    Resolves and checksums the DataAssetRegistry address from environment
+    or from the deployments.json fallback.
+    """
+    dar_env = os.getenv("DATA_ASSET_REGISTRY_ADDRESS")
+    if dar_env:
+        return Web3.to_checksum_address(dar_env)
+
+    # Resolve path to deployments.json in the repository root
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    deployments_path = os.path.join(root_dir, "deployments.json")
+    if not os.path.exists(deployments_path):
+        deployments_path = "deployments.json"
+
+    try:
+        with open(deployments_path, "r", encoding="utf-8") as dep_file:
+            dep_data = json.load(dep_file)
+        contracts = dep_data.get("contracts", {})
+        dar_addr = contracts.get("Data_Asset_Registry") or dep_data.get("DATA_ASSET_REGISTRY_ADDRESS")
+        if not dar_addr:
+            raise ValueError("Data_Asset_Registry address not found in deployments.json")
+        return Web3.to_checksum_address(dar_addr)
+    except Exception as err:
+        raise RuntimeError(f"Failed to load DATA_ASSET_REGISTRY_ADDRESS: {err}") from err
+
+
+def run_engine_example() -> None:
     """
     Demonstrates the full appraisal workflow with entropy guardrails.
     """
+    # pylint: disable=too-many-locals
     print("🚀 Initializing Epiphany Appraisal Engine with Guardrails...")
 
     # Configuration
     p_key = os.getenv("APPRAISER_PRIVATE_KEY", "0x" + "9" * 64)
     c_id = int(os.getenv("CHAIN_ID", "1337"))
-    c_addr = Web3.to_checksum_address(os.getenv("DATA_ASSET_REGISTRY_ADDRESS", "0x" + "a" * 40))
+    c_addr = resolve_data_asset_registry_address()
 
     engine = AppraisalEngine(p_key, c_id, c_addr)
 
@@ -168,17 +201,22 @@ def run_engine_example():
         return
 
     # 3. Generate Signed Appraisal
-    creator = Web3.to_checksum_address("0x71C7656EC7ab88b098defB751B7401B5f6d147a3")
-    params = AppraisalParams(data_hash=d_hash, price_eit_wei=price_eit_wei,
-                            ipfs_cid="QmPK1s3pNYsjnu7wT2L7ck5nS1...", creator_address=creator,
-                            nonce=int(time.time()))
+    creator_raw = os.getenv("CREATOR_ADDRESS")
+    if not creator_raw:
+        raise ValueError("CREATOR_ADDRESS environment variable is required.")
+    creator = Web3.to_checksum_address(creator_raw)
+    estimated_tokens = price_eit_wei
+    params = AppraisalParams(asset_hash=d_hash, price_eit_wei=price_eit_wei,
+                            estimated_tokens=estimated_tokens,
+                            ipfs_cid=os.getenv("IPFS_CID", "QmPK1s3pNYsjnu7wT2L7ck5nS1..."),
+                            creator_address=creator, nonce=int(time.time()))
 
     # pylint: disable=no-value-for-parameter
     result = engine.generate_appraisal_signature(params)
 
     # Manual conversion for HexBytes
     ser_app = result["appraisal"].copy()
-    ser_app["dataHash"] = "0x" + ser_app["dataHash"].hex()
+    ser_app["assetHash"] = "0x" + ser_app["assetHash"].hex()
     ser_res = {"appraisal": ser_app, "signature": result["signature"]}
 
     print("\n--- CRYPTOGRAPHIC APPRAISAL PROOF ---")

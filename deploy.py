@@ -242,6 +242,15 @@ def run_deployment_loop() -> None:
         os.makedirs(os.path.dirname(OUTPUT_ARTIFACT_PATH), exist_ok=True)
         with open(OUTPUT_ARTIFACT_PATH, "w", encoding="utf-8") as out_file:
             json.dump(address_manifest, out_file, indent=2)
+
+        # Write to deployments.json in the root
+        deployments_manifest = {
+            "contracts": address_manifest["contracts"],
+            "DATA_ASSET_REGISTRY_ADDRESS": address_manifest["contracts"].get("Data_Asset_Registry")
+        }
+        with open("deployments.json", "w", encoding="utf-8") as dep_file:
+            json.dump(deployments_manifest, dep_file, indent=2)
+
         print(f"[Wurk] Simulation complete. Mock addresses saved to: {OUTPUT_ARTIFACT_PATH}")
         return
 
@@ -264,6 +273,15 @@ def run_deployment_loop() -> None:
     os.makedirs(os.path.dirname(OUTPUT_ARTIFACT_PATH), exist_ok=True)
     with open(OUTPUT_ARTIFACT_PATH, "w", encoding="utf-8") as out_file:
         json.dump(address_manifest, out_file, indent=2)
+
+    # Write to deployments.json in the root
+    deployments_manifest = {
+        "contracts": address_manifest["contracts"],
+        "DATA_ASSET_REGISTRY_ADDRESS": address_manifest["contracts"].get("Data_Asset_Registry")
+    }
+    with open("deployments.json", "w", encoding="utf-8") as dep_file:
+        json.dump(deployments_manifest, dep_file, indent=2)
+
     print(f"[Wurk] Deployment complete. Address manifest saved to: {OUTPUT_ARTIFACT_PATH}")
 
 
