@@ -69,6 +69,12 @@ contract ProvenanceLedger is ERC20, ERC20Permit, Pausable, ReentrancyGuard {
 
     /**
      * @dev Step 1: Anchor Forensic Findings onto the state machine.
+     * NOTE: This function signature was updated from anchorIntelligenceReport(bytes32, uint128)
+     * to anchorIntelligenceReport(bytes32, uint128, string calldata) to support IPFS URI anchoring.
+     * Any off-chain caller or script encoding the legacy 2-parameter ABI will revert.
+     * @param reportId Unique identifier for the intelligence report.
+     * @param launderedValue Value associated with the report.
+     * @param ipfsCID IPFS Content Identifier for the anchored data.
      */
     function anchorIntelligenceReport(
         bytes32 reportId,

@@ -31,3 +31,27 @@ function processEvidenceFingerprint() {
 }
 
 processEvidenceFingerprint();
+
+/**
+ * 💡 CONTRACT ABI MIGRATION DOCUMENTATION
+ * -----------------------------------------------------------------------------
+ * The anchorIntelligenceReport function in ProvenanceLedger.sol has been updated from
+ * 2 parameters to 3 parameters to support anchoring of IPFS Content Identifiers (CIDs):
+ *
+ * Legacy ABI:
+ *   anchorIntelligenceReport(bytes32 reportId, uint128 launderedValue)
+ *
+ * Updated ABI:
+ *   anchorIntelligenceReport(bytes32 reportId, uint128 launderedValue, string ipfsCID)
+ *
+ * To invoke this function from an off-chain script (e.g. ethers or web3.js), you must
+ * pass the third parameter corresponding to the IPFS CID of the forensic evidence:
+ *
+ * Example using ethers.js:
+ *   const tx = await ledgerContract.anchorIntelligenceReport(
+ *       reportId,
+ *       ethers.parseUnits("1000", 18),
+ *       "QmPK1s3pNYsjnu7wT2L7ck5nS1..."
+ *   );
+ * -----------------------------------------------------------------------------
+ */

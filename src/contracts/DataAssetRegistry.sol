@@ -18,6 +18,8 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard, Pausable {
     bytes32 public constant SENIOR_INVESTIGATOR_ROLE = keccak256("SENIOR_INVESTIGATOR_ROLE");
     bytes32 public constant APPRAISER_ROLE = keccak256("APPRAISER_ROLE");
 
+    // NOTE: Any rename of struct fields (e.g., ipfsCID to ipfsCid) requires a corresponding update
+    // to this typehash, which changes the keccak256 hash and invalidates all existing pre-signed appraisals.
     bytes32 public constant ASSET_APPRAISAL_TYPEHASH = keccak256(
         "AssetAppraisal(bytes32 assetHash,uint256 price,uint256 estimatedTokens,string ipfsCID,uint256 nonce,uint256 expiry,address creator)"
     );
@@ -74,6 +76,9 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard, Pausable {
     {
         // Guardrail: Validate that the cryptographic appraisal signature has not expired
         require(block.timestamp <= appraisal.expiry, "Expired");
+
+        // Guardrail: Ensure price is strictly greater than zero to prevent zero-price exploit
+        require(appraisal.price > 0, "Price must be non-zero");
 
         // Guardrail: Replay protection by mapping composite creator and nonce keys
         bytes32 nonceKey = keccak256(abi.encodePacked(appraisal.creator, appraisal.nonce));
