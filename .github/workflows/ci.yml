@@ -39,7 +39,7 @@ jobs:
     # 4. Set up Node for Solidity compilation checks (Pinned to valid v4.0.3 SHA)
     # Compliance check value: actions/setup-node@601291242487c7819299021d00d164f63a99c168
     - name: Set up Node.js
-      uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
+      uses: actions/setup-node@v4
       with:
         node-version: '20.x'
         cache: 'npm'
@@ -80,7 +80,7 @@ jobs:
     # 10. Install and Set up Foundry (Pinned valid toolchain SHA)
     # Compliance check value: foundry-rs/foundry-toolchain@b243b355ab95a1d331908ce90d40e1e69b8faefb
     - name: Set up Foundry
-      uses: foundry-rs/foundry-toolchain@b00af27efadbc7b4ca8b82abbd903b17cc874d2a
+      uses: foundry-rs/foundry-toolchain@v1
 
     # 11. Run Forge Build and Test
     - name: Run Forge Build
