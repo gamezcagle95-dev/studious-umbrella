@@ -1,75 +1,99 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
+/**
+ * @dev Import the Foundry standard test library to enable assertions, VM pranks,
+ * and testing utility scripts.
+ */
 import "forge-std/Test.sol";
 import "../src/ForensicAsset.sol";
 
+/**
+ * @title ForensicAssetTest
+ * @notice Test suite for validating the deployment, minting, hash anchoring, and royalty calculations of ForensicAsset.
+ * @dev Inherits Foundry's standard Test contract. Employs pranks and assertion helpers to isolate roles.
+ *
+ * Compliance Goals:
+ * - Verify that only authorized forensic administrators (Ownable contract owners) can mint assets.
+ * - Certify that cryptographic dataset hashes cannot be altered post-mint (immutability checking).
+ * - Validate that ERC-2981 royalty calculations conform to basis points spec.
+ */
 contract ForensicAssetTest is Test {
+
+    // Core contract instance being audited
     ForensicAsset public asset;
+
+    // Test accounts for role separation
     address public owner;
     address public nonOwner;
     address public recipient;
 
+    /**
+     * @notice Performs initial state setup before each test case runs.
+     * @dev Deploys a new instance of ForensicAsset with a mock metadata base URI and configures test accounts.
+     */
     function setUp() public {
-        // Assign roles to standard test entities to ensure zero-PII security
         owner = address(this);
         nonOwner = address(0x999);
         recipient = address(0x123);
-        // Initialize the ForensicAsset ERC-1155 contract with standard metadata URI
+
+        // Deploy ForensicAsset pointing to metadata schemas hosted on a secure Epiphany sub-domain
         asset = new ForensicAsset("https://metadata.epiphany.network/api/item/{id}.json");
     }
 
     /**
-     * @dev Verifies that the owner can successfully mint tokens and anchor
-     * the immutable SHA-256 hash representation of the forensic dataset.
+     * @notice Tests that standard token minting works correctly and anchors immutable dataset hashes on-chain.
+     * @dev Mints an asset as the owner, verifies the recipient balance, and asserts dataset hash mapping integrity.
      */
     function test_MintAndHashAnchoring() public {
         uint256 id = 1;
         uint256 amount = 100;
+
+        // Simulate a SHA-256 hash of a raw investigative forensic report payload
         bytes32 datasetHash = keccak256("test_dataset_payload");
 
-        // Mint asset tokens as owner, configured with 10% royalty (1000 bps)
+        // Mint as the owner - sets a 10% royalty rate (1000 basis points)
         asset.mint(recipient, id, amount, datasetHash, 1000, "");
 
-        // Assert recipient balance matches expected minted allocation amount
+        // Verify that the recipient has successfully received the semi-fungible token balance
         assertEq(asset.balanceOf(recipient, id), amount);
 
-        // Assert dataset hashes map deterministically to ensure immutable audit trails
+        // Verify that the on-chain SHA-256 fingerprint remains uncorrupted and accessible
         assertEq(asset.datasetHashes(id), datasetHash);
     }
 
     /**
-     * @dev Verifies the correctness of the EIP-2981 royalty calculations.
-     * Computes the basis points payout for secondary market clearinghouse routing.
+     * @notice Validates that royalty configurations conform precisely to the ERC-2981 standard.
+     * @dev Mints an asset with a specified royalty and queries `royaltyInfo` to assert correct recipient and amount.
      */
     function test_RoyaltyCalculation() public {
         uint256 id = 1;
         bytes32 datasetHash = keccak256("test_dataset_payload");
 
-        // Mint token with 10% royalty mapping configured during mint function execution
+        // Mint a forensic asset with 10% royalty (1000 basis points)
         asset.mint(recipient, id, 100, datasetHash, 1000, "");
 
-        // Programmatically query ERC-2981 royaltyInfo for a mock sale of 10,000 Wei
+        // Query royalty calculations for a sale price of 10000 Wei (should yield exactly 1000 Wei)
         (address royaltyRecipient, uint256 royaltyAmount) = asset.royaltyInfo(id, 10000);
 
-        // Assert royalty recipient is correctly routed to token creator
+        // Assert that the recipient configured during minting receives the royalty fee
         assertEq(royaltyRecipient, recipient);
-        // Assert royalty payment matches expected 10% payout of 1,000 Wei
+
+        // Assert that the calculated fee represents exactly 10% of the sale price
         assertEq(royaltyAmount, 1000);
     }
 
     /**
-     * @dev Validates security boundary: ensures non-owner accounts cannot
-     * invoke restricted mint operations, raising standard Ownable exceptions.
+     * @notice Verifies that unauthorized third-party attempts to mint forensic tokens are correctly reverted.
+     * @dev Uses Foundry's `vm.prank` to simulate a call from a non-owner and expects a revert.
      */
     function test_UnauthorizedMintFails() public {
         uint256 id = 2;
         bytes32 datasetHash = keccak256("unauthorized_dataset");
 
-        // Set message sender context to unauthorized non-owner
+        // Expect a standard revert when an address other than the Ownable owner attempts to mint
         vm.prank(nonOwner);
-        // Assert that execution reverts cleanly due to standard ownership guards
-        vm.expectRevert();
+        vm.expectRevert(); // Standard OpenZeppelin Ownable Unauthorized check
         asset.mint(recipient, id, 100, datasetHash, 1000, "");
     }
 }
