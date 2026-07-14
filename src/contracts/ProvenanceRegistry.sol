@@ -44,7 +44,18 @@ contract ProvenanceRegistry is ERC721URIStorage, AccessControl, ReentrancyGuard 
         if (_ledgerAddress == address(0)) revert InvalidAddress();
         ledgerAddress = _ledgerAddress;
 
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+// Option A: add a second authorized minter to the constructor
+constructor(address _ledgerAddress, address _dataAssetRegistry) ERC721("Epiphany Data Asset", "EDA") {
+    if (_ledgerAddress == address(0)) revert InvalidAddress();
+    if (_dataAssetRegistry == address(0)) revert InvalidAddress();
+    ledgerAddress = _ledgerAddress;
+    _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    _grantRole(MINTER_ROLE, _ledgerAddress);
+    _grantRole(MINTER_ROLE, _dataAssetRegistry);
+}
+
+// Option B: rely on the DEFAULT_ADMIN_ROLE holder to call
+// grantRole(MINTER_ROLE, dataAssetRegistryAddress) post-deployment via a migration script.
         _grantRole(MINTER_ROLE, _ledgerAddress);
     }
 
