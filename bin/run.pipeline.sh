@@ -6,7 +6,17 @@ echo "      EPIPHANY ORACLE PROTOCOL - INTEGRATED AUTOMATION PIPELINE        "
 echo "======================================================================"
 echo "Timestamp: $(date '+%Y-%m-%d %H:%M:%S')"
 
-source venv/bin/activate
+# Detect and activate isolated Python computational runtime environment
+if [ -d "venv" ]; then
+    echo "✓ Local virtual runtime found. Activating execution layer..."
+    source venv/bin/activate
+else
+    echo "Initializing fresh runtime sandboxing environment..."
+    python3 -m venv venv
+    source venv/bin/activate
+    pip install --upgrade pip --quiet
+    pip install -r requirements.txt --quiet
+fi
 
 echo -e "\n📦 [1/4] Building Artifacts..."
 bash bin/build.contracts.sh
