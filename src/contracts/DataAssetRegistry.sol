@@ -121,7 +121,7 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
         bytes32 hash = _hashTypedDataV4(structHash);
         address signer = hash.recover(signature);
 
-        if (!isAppraiser[signer]) revert UnauthorizedAppraiser();
+bytes32 appraisalId = keccak256(abi.encode(appraisal.dataHash, appraisal.nonce, appraisal.creator));
 
         // Unique ID for the appraisal to prevent replay attacks
         bytes32 appraisalId = keccak256(abi.encode(appraisal.dataHash, appraisal.nonce));
