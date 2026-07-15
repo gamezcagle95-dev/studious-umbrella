@@ -14,7 +14,20 @@ jobs:
     steps:
     # 1. Checkout the compiled code state
     - name: Checkout Code
-      uses: actions/checkout@v4
+    - name: Checkout Code
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3 # v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Set up Node.js
+      uses: actions/setup-node@601291242487c7819299021d00d164f63a99c168 # v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
 
     # 2. Set up Python environment
     - name: Set up Python 3.12
