@@ -147,13 +147,17 @@ def main() -> None:
 
     if args.test:
         print("[Wurk] Initializing isolated pipeline test run...")
-        # Create a self-cleaning temporary file to simulate dummy training weights
-        with tempfile.NamedTemporaryFile(delete=True) as temp_weights:
-            temp_weights.write(b"MOCK_MODEL_WEIGHTS_TRAINING_STATE_DATA_010101")
-            temp_weights.flush()
+        # Create a temporary file, close it so it can be re-opened by the hasher
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tmp:
+            try:
+                tmp.write(b"MOCK_MODEL_WEIGHTS_TRAINING_STATE_DATA_010101")
+                tmp.flush()
+                tmp.close()
 
-            # Process the temporary file
-            process_file(temp_weights.name, args.evaluator, args.output_dir)
+                process_file(tmp.name, args.evaluator, args.output_dir)
+            finally:
+                if os.path.exists(tmp.name):
+                    os.remove(tmp.name)
         print("[Wurk] Test run completed. Temporary assets have been garbage-collected.")
     else:
         process_file(args.file_path, args.evaluator, args.output_dir)
