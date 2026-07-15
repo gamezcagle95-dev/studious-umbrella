@@ -140,7 +140,9 @@ def run_engine_example():
     """
     Demonstrates the full appraisal workflow with entropy guardrails.
     """
-    print("🚀 Initializing Epiphany Appraisal Engine with Guardrails...")
+p_key = os.getenv("APPRAISER_PRIVATE_KEY")
+if not p_key:
+    raise ValueError("APPRAISER_PRIVATE_KEY environment variable is required and must not be empty.")
 
     # Configuration
     p_key = os.getenv("APPRAISER_PRIVATE_KEY", "0x" + "9" * 64)
