@@ -35,6 +35,7 @@ class AppraisalParams:
     """Container for appraisal signature parameters to satisfy Pylint."""
     data_hash: bytes
     price_eit_wei: int
+    token_count: int
     ipfs_cid: str
     creator_address: str
     nonce: int
@@ -105,6 +106,7 @@ class AppraisalEngine:
             "Appraisal": [
                 {"name": "dataHash", "type": "bytes32"},
                 {"name": "price", "type": "uint256"},
+                {"name": "tokenCount", "type": "uint256"},
                 {"name": "ipfsCID", "type": "string"},
                 {"name": "nonce", "type": "uint256"},
                 {"name": "expiry", "type": "uint256"},
@@ -116,6 +118,7 @@ class AppraisalEngine:
         appraisal_data = {
             "dataHash": params.data_hash,
             "price": params.price_eit_wei,
+            "tokenCount": params.token_count,
             "ipfsCID": params.ipfs_cid,
             "nonce": params.nonce,
             "expiry": expiry,
@@ -140,27 +143,12 @@ def run_engine_example():
     """
     Demonstrates the full appraisal workflow with entropy guardrails.
     """
-p_key = os.getenv("APPRAISER_PRIVATE_KEY")
-if not p_key:
-    raise ValueError("APPRAISER_PRIVATE_KEY environment variable is required and must not be empty.")
+    print("🚀 Initializing Epiphany Appraisal Engine with Guardrails...")
 
     # Configuration
     p_key = os.getenv("APPRAISER_PRIVATE_KEY", "0x" + "9" * 64)
     c_id = int(os.getenv("CHAIN_ID", "1337"))
-def run_engine_example():
-    """
-    Demonstrates the full appraisal workflow with entropy guardrails.
-    """
-    p_key = os.getenv("APPRAISER_PRIVATE_KEY")
-    if not p_key:
-        raise ValueError(
-            "APPRAISER_PRIVATE_KEY environment variable is required."
-        )
-    c_id = int(os.getenv("CHAIN_ID", "1337"))
-    c_addr = Web3.to_checksum_address(
-        os.getenv("DATA_ASSET_REGISTRY_ADDRESS", "0x" + "a" * 40)
-    )
-    engine = AppraisalEngine(p_key, c_id, c_addr)
+    c_addr = Web3.to_checksum_address(os.getenv("DATA_ASSET_REGISTRY_ADDRESS", "0x" + "a" * 40))
 
     engine = AppraisalEngine(p_key, c_id, c_addr)
 
@@ -184,9 +172,14 @@ def run_engine_example():
 
     # 3. Generate Signed Appraisal
     creator = Web3.to_checksum_address("0x71C7656EC7ab88b098defB751B7401B5f6d147a3")
-    params = AppraisalParams(data_hash=d_hash, price_eit_wei=price_eit_wei,
-                            ipfs_cid="QmPK1s3pNYsjnu7wT2L7ck5nS1...", creator_address=creator,
-                            nonce=int(time.time()))
+    params = AppraisalParams(
+        data_hash=d_hash,
+        price_eit_wei=price_eit_wei,
+        token_count=len(raw_data.split()), # Word count as token count
+        ipfs_cid="QmPK1s3pNYsjnu7wT2L7ck5nS1...",
+        creator_address=creator,
+        nonce=int(time.time())
+    )
 
     # pylint: disable=no-value-for-parameter
     result = engine.generate_appraisal_signature(params)

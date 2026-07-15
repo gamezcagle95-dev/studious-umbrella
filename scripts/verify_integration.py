@@ -114,8 +114,14 @@ def perform_appraisal(engine, creator_acc, raw_data):
                               scarcity_metric=2.0, demand_vector=1.2)
     valuation_usd = engine.calculate_valuation(metrics, raw_data)
     price = engine.usd_to_eit_wei(valuation_usd)
-    params = AppraisalParams(data_hash=data_hash, price_eit_wei=price,
-                            ipfs_cid="QmTest123456789", creator_address=creator_acc, nonce=1)
+    params = AppraisalParams(
+        data_hash=data_hash,
+        price_eit_wei=price,
+        token_count=len(raw_data.split()),
+        ipfs_cid="QmTest123456789",
+        creator_address=creator_acc,
+        nonce=1
+    )
     appraisal_result = engine.generate_appraisal_signature(params)
     return appraisal_result, valuation_usd, data_hash
 
@@ -147,6 +153,57 @@ def setup_test_env():
     solcx.set_solc_version("0.8.26")
     return w3, deployer, creator_acc, buyer_acc, app_acc
 
+def test_price_boundaries(ctx: SecurityTestContext):
+    """Sub-test for on-chain price boundaries."""
+    print("⏳ Testing On-Chain Price Boundaries...")
+    ctx.stack.dar.functions.setMaxPricePerAsset(1000 * 10**18).transact({"from": ctx.deployer})
+    ctx.stack.dar.functions.setMaxPricePerToken(10 * 10**18).transact({"from": ctx.deployer})
+
+    huge_price_app, _, _ = perform_appraisal(ctx.engine, ctx.creator_acc, "Legit data")
+    huge_price_app["appraisal"]["price"] = 2000 * 10**18
+    huge_p = huge_price_app["appraisal"]
+    huge_params = AppraisalParams(
+        data_hash=huge_p["dataHash"], price_eit_wei=huge_p["price"],
+        token_count=huge_p["tokenCount"], ipfs_cid=huge_p["ipfsCID"],
+        creator_address=huge_p["creator"], nonce=2
+    )
+    huge_signed = ctx.engine.generate_appraisal_signature(huge_params)
+    try:
+        ctx.stack.ledger.functions.approve(ctx.stack.dar.address, 2000 * 10**18).transact(
+            {"from": ctx.buyer_acc})
+        app_p = huge_signed["appraisal"]
+        payload = (app_p["dataHash"], app_p["price"], app_p["tokenCount"], app_p["ipfsCID"],
+                   app_p["nonce"], app_p["expiry"], app_p["creator"])
+        ctx.stack.dar.functions.purchaseAsset(
+            payload, bytes.fromhex(huge_signed["signature"])
+        ).transact({"from": ctx.buyer_acc})
+        print("❌ On-chain circuit breaker failed to block huge price.")
+    except Exception: # pylint: disable=broad-exception-caught
+        print("✅ On-chain circuit breaker blocked huge price successfully.")
+
+    high_ppt_app, _, _ = perform_appraisal(ctx.engine, ctx.creator_acc, "Few words")
+    high_ppt_app["appraisal"]["price"] = 100 * 10**18
+    high_ppt_app["appraisal"]["tokenCount"] = 2
+    high_params = AppraisalParams(
+        data_hash=high_ppt_app["appraisal"]["dataHash"],
+        price_eit_wei=high_ppt_app["appraisal"]["price"],
+        token_count=high_ppt_app["appraisal"]["tokenCount"],
+        ipfs_cid=high_ppt_app["appraisal"]["ipfsCID"],
+        creator_address=ctx.creator_acc,
+        nonce=3
+    )
+    high_ppt_signed = ctx.engine.generate_appraisal_signature(high_params)
+    try:
+        app_p = high_ppt_signed["appraisal"]
+        payload = (app_p["dataHash"], app_p["price"], app_p["tokenCount"], app_p["ipfsCID"],
+                   app_p["nonce"], app_p["expiry"], app_p["creator"])
+        ctx.stack.dar.functions.purchaseAsset(
+            payload, bytes.fromhex(high_ppt_signed["signature"])
+        ).transact({"from": ctx.buyer_acc})
+        print("❌ On-chain circuit breaker failed to block high price-per-token.")
+    except Exception: # pylint: disable=broad-exception-caught
+        print("✅ On-chain circuit breaker blocked high price-per-token successfully.")
+
 def test_security_features(ctx: SecurityTestContext):
     """Tests off-chain guardrails and on-chain circuit breakers."""
     print("\n🛡️ Testing Security Features...")
@@ -155,45 +212,22 @@ def test_security_features(ctx: SecurityTestContext):
     if val == 0:
         print("✅ Off-chain guardrail rejected noise successfully.")
 
-    ctx.stack.dar.functions.setMaxPricePerAsset(1000 * 10**18).transact({"from": ctx.deployer})
-    huge_price_app, _, _ = perform_appraisal(ctx.engine, ctx.creator_acc, "Legit data")
-    huge_price_app["appraisal"]["price"] = 2000 * 10**18
-    huge_params = AppraisalParams(
-        data_hash=huge_price_app["appraisal"]["dataHash"],
-        price_eit_wei=huge_price_app["appraisal"]["price"],
-        ipfs_cid=huge_price_app["appraisal"]["ipfsCID"],
-        creator_address=huge_price_app["appraisal"]["creator"],
-        nonce=2
-    )
-    huge_signed = ctx.engine.generate_appraisal_signature(huge_params)
-    try:
-        ctx.stack.ledger.functions.approve(ctx.stack.dar.address, 2000 * 10**18).transact(
-            {"from": ctx.buyer_acc})
-        ctx.stack.dar.functions.purchaseAsset(
-            (huge_signed["appraisal"]["dataHash"], huge_signed["appraisal"]["price"],
-             huge_signed["appraisal"]["ipfsCID"], huge_signed["appraisal"]["nonce"],
-             huge_signed["appraisal"]["expiry"], huge_signed["appraisal"]["creator"]),
-            bytes.fromhex(huge_signed["signature"])
-        ).transact({"from": ctx.buyer_acc})
-        print("❌ On-chain circuit breaker failed to block huge price.")
-    except Exception: # pylint: disable=broad-exception-caught
-        print("✅ On-chain circuit breaker blocked huge price successfully.")
+    test_price_boundaries(ctx)
 
-def run_royalty_routing_simulation(w3, stack, appraisal_result, buyer_acc):
+def run_royalty_routing_simulation(stack, appraisal_result, buyer_acc):
     """
     Executes the EIT Royalty Routing Simulation.
     """
     print("\n🔄 Phase 1: Token Authorization...")
     price = appraisal_result["appraisal"]["price"]
-    tx_hash = stack.ledger.functions.approve(stack.dar.address, price).transact(
+    stack.ledger.functions.approve(stack.dar.address, price).transact(
         {"from": buyer_acc})
-    receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
-    print(f"✅ EIT Approve Successful! Hash: {receipt.transactionHash.hex()}")
+    print("✅ EIT Approve Successful!")
 
     print("\n🔄 Phase 2: Settlement Transfer...")
     app_res = appraisal_result["appraisal"]
     appraisal_payload = (
-        app_res["dataHash"], app_res["price"], app_res["ipfsCID"],
+        app_res["dataHash"], app_res["price"], app_res["tokenCount"], app_res["ipfsCID"],
         app_res["nonce"], app_res["expiry"], app_res["creator"]
     )
     sig_hex = appraisal_result["signature"]
@@ -201,10 +235,9 @@ def run_royalty_routing_simulation(w3, stack, appraisal_result, buyer_acc):
 
     tx_hash = stack.dar.functions.purchaseAsset(appraisal_payload, signature).transact(
         {"from": buyer_acc})
-    receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+    receipt = stack.ledger.w3.eth.wait_for_transaction_receipt(tx_hash)
     print(f"✅ Settlement Successful! Hash: {receipt.transactionHash.hex()}")
 
-    # Verify Transfer event
     logs = stack.ledger.events.Transfer().process_receipt(receipt)
     if any(log['args']['to'] == app_res["creator"] for log in logs):
         print(f"✓ Royalty routed correctly to creator: {app_res['creator']}")
@@ -228,13 +261,13 @@ def verify_integration():
     engine = AppraisalEngine(app_acc.key, w3.eth.chain_id, stack.dar.address)
     raw_report = "Forensic analysis: Transaction 0xabc... reveals 4.2B unauthorized movement."
     app_res, valuation, d_hash = perform_appraisal(engine, creator_acc, raw_report)
-    print(f"✓ Appraisal signed. Price: {valuation} USD")
+    tokens = app_res['appraisal']['tokenCount']
+    print(f"✓ Appraisal signed. Price: {valuation} USD, Tokens: {tokens}")
 
-    run_royalty_routing_simulation(w3, stack, app_res, buyer_acc)
+    run_royalty_routing_simulation(stack, app_res, buyer_acc)
 
     check_outcomes(stack, buyer_acc, d_hash, app_res)
 
-    # Security tests
     sec_ctx = SecurityTestContext(stack, engine, creator_acc, buyer_acc, deployer)
     test_security_features(sec_ctx)
 

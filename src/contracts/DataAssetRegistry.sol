@@ -23,6 +23,7 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
     struct Appraisal {
         bytes32 dataHash;
         uint256 price;
+        uint256 tokenCount;
         string ipfsCID;
         uint256 nonce;
         uint256 expiry;
@@ -30,7 +31,7 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
     }
 
     bytes32 public constant APPRAISAL_TYPEHASH = keccak256(
-        "Appraisal(bytes32 dataHash,uint256 price,string ipfsCID,uint256 nonce,uint256 expiry,address creator)"
+        "Appraisal(bytes32 dataHash,uint256 price,uint256 tokenCount,string ipfsCID,uint256 nonce,uint256 expiry,address creator)"
     );
 
     IERC20 public immutable eitToken;
@@ -38,6 +39,7 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
 
     // Sanity boundaries (Circuit Breaker)
     uint256 public maxPricePerAsset = 1_000_000 * 10**18; // Default 1M EIT tokens
+    uint256 public maxPricePerToken = 10_000 * 10**18;    // Default 10k EIT tokens per unit
 
     mapping(address => bool) public isAppraiser;
     mapping(bytes32 => bool) public usedAppraisals;
@@ -47,6 +49,7 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
     event AssetUnlocked(bytes32 indexed dataHash, address indexed buyer, uint256 price);
     event AppraiserStatusChanged(address indexed appraiser, bool status);
     event MaxPriceUpdated(uint256 oldMax, uint256 newMax);
+    event MaxPricePerTokenUpdated(uint256 oldMax, uint256 newMax);
 
     error InvalidSignature();
     error AppraisalExpired();
@@ -54,6 +57,7 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
     error UnauthorizedAppraiser();
     error TransferFailed();
     error PriceExceedsSanityBoundary(uint256 requested, uint256 maxAllowed);
+    error PricePerTokenExceedsBoundary(uint256 requested, uint256 maxAllowed);
 
     constructor(address _eitToken, address _provenanceRegistry)
         EIP712("DataAssetRegistry", "1")
@@ -83,6 +87,14 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
     }
 
     /**
+     * @dev Updates the global maximum price-per-token allowed.
+     */
+    function setMaxPricePerToken(uint256 _maxPricePerToken) external onlyOwner {
+        emit MaxPricePerTokenUpdated(maxPricePerToken, _maxPricePerToken);
+        maxPricePerToken = _maxPricePerToken;
+    }
+
+    /**
      * @dev Authorizes or revokes an appraiser address.
      */
     function setAppraiser(address appraiser, bool status) external onlyOwner {
@@ -108,10 +120,19 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
             revert PriceExceedsSanityBoundary(appraisal.price, maxPricePerAsset);
         }
 
+        // Circuit Breaker: Enforce price-per-token sanity boundary
+        if (appraisal.tokenCount > 0) {
+            uint256 pricePerToken = appraisal.price / appraisal.tokenCount;
+            if (pricePerToken > maxPricePerToken) {
+                revert PricePerTokenExceedsBoundary(pricePerToken, maxPricePerToken);
+            }
+        }
+
         bytes32 structHash = keccak256(abi.encode(
             APPRAISAL_TYPEHASH,
             appraisal.dataHash,
             appraisal.price,
+            appraisal.tokenCount,
             keccak256(bytes(appraisal.ipfsCID)),
             appraisal.nonce,
             appraisal.expiry,
@@ -121,7 +142,7 @@ contract DataAssetRegistry is EIP712, Ownable, ReentrancyGuard, Pausable {
         bytes32 hash = _hashTypedDataV4(structHash);
         address signer = hash.recover(signature);
 
-bytes32 appraisalId = keccak256(abi.encode(appraisal.dataHash, appraisal.nonce, appraisal.creator));
+        if (!isAppraiser[signer]) revert UnauthorizedAppraiser();
 
         // Unique ID for the appraisal to prevent replay attacks
         bytes32 appraisalId = keccak256(abi.encode(appraisal.dataHash, appraisal.nonce));
