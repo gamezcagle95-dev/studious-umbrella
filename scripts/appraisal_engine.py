@@ -147,7 +147,20 @@ if not p_key:
     # Configuration
     p_key = os.getenv("APPRAISER_PRIVATE_KEY", "0x" + "9" * 64)
     c_id = int(os.getenv("CHAIN_ID", "1337"))
-    c_addr = Web3.to_checksum_address(os.getenv("DATA_ASSET_REGISTRY_ADDRESS", "0x" + "a" * 40))
+def run_engine_example():
+    """
+    Demonstrates the full appraisal workflow with entropy guardrails.
+    """
+    p_key = os.getenv("APPRAISER_PRIVATE_KEY")
+    if not p_key:
+        raise ValueError(
+            "APPRAISER_PRIVATE_KEY environment variable is required."
+        )
+    c_id = int(os.getenv("CHAIN_ID", "1337"))
+    c_addr = Web3.to_checksum_address(
+        os.getenv("DATA_ASSET_REGISTRY_ADDRESS", "0x" + "a" * 40)
+    )
+    engine = AppraisalEngine(p_key, c_id, c_addr)
 
     engine = AppraisalEngine(p_key, c_id, c_addr)
 
