@@ -60,7 +60,10 @@ jobs:
         PYTHONPATH: .
       run: |
         python3 scripts/verify_integration.py
-        python3 pipelines/src/pipeline_hashing.py --test
+# Remove the entire duplicate block shown below.
+# Delete from '# 2. Set up Python environment' through the end of
+# 'cache: npm' for the second Set up Node.js block.
+# Keep only the SHA-pinned versions that appear in the first block.
 
     # 6. Set up Node for Solidity compilation checks
     - name: Set up Node.js
