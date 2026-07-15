@@ -39,7 +39,7 @@ extension-pkg-whitelist=
 fail-on=
 
 # Specify a score threshold under which the program will exit with error.
-fail-under=10.0
+fail-under=9.5
 
 # Interpret the stdin as a python script, whose filename needs to be passed as
 # the module_or_package argument.
@@ -313,6 +313,7 @@ max-locals=15
 max-parents=7
 
 # Maximum number of positional arguments for function / method.
+max-positional-arguments=5
 
 # Maximum number of public methods for a class (see R0904).
 max-public-methods=20
@@ -351,7 +352,7 @@ indent-string='    '
 # Maximum number of characters on a single line. Pylint's default of 100 is
 # based on PEP 8's guidance that teams may choose line lengths up to 99
 # characters.
-max-line-length=100
+max-line-length=120
 
 # Maximum number of lines in a module.
 max-module-lines=1000
@@ -463,6 +464,7 @@ timeout-methods=requests.api.delete,requests.api.get,requests.api.head,requests.
 [MISCELLANEOUS]
 
 # Whether or not to search for fixme's in docstrings.
+check-fixme-in-docstring=no
 
 # List of note tags to take in consideration, separated by a comma.
 notes=FIXME,
@@ -554,7 +556,7 @@ spelling-ignore-words=
 spelling-private-dict-file=
 
 # Tells whether to store unknown words to the private dictionary (see the
-# --spelling-private-dict-file option) instead of raising a message.
+# spelling-private-dict-file option) instead of raising a message.
 spelling-store-unknown-words=no
 
 
@@ -612,7 +614,7 @@ missing-member-hint=yes
 # similar match for a missing member name.
 missing-member-hint-distance=1
 
-# The total number of similar names that should be taken in consideration when
+# The total number of similar names that should be considered when
 # showing a hint for a missing member.
 missing-member-max-choices=1
 

@@ -1,8 +1,10 @@
 web3==7.16.0
+py-solc-x==2.0.5
+python-dotenv==1.2.2
+pylint==4.0.6
 eth-account==0.13.7
-eth-tester==0.13.0b1
-python-dotenv==1.0.1
-pylint==3.2.7
+requests==2.34.2
+types-requests==2.33.0.20260518
 pandas==2.2.3
-py-solc-x==2.0.3
-requests==2.32.3
+eth-tester==0.13.0b1
+py-evm==0.12.1b1

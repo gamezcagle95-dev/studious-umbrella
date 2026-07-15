@@ -29,6 +29,8 @@ def main():
     """Main execution point for hashing pipeline."""
     parser = argparse.ArgumentParser(description="Epiphany Protocol Hashing Pipeline")
     parser.add_argument("--test", action="store_true", help="Run in test mode")
+    parser.add_argument("--evaluator", type=str, default="default-evaluator", help="Evaluator ID")
+    parser.add_argument("file", nargs='?', default=None, help="File to hash")
     args = parser.parse_args()
 
     sample_data = {
@@ -39,7 +41,7 @@ def main():
         "metadata": {"subject": "SEC Liquidity Injection 2024"}
     }
 
-    packet = generate_proof_packet(sample_data)
+    packet = generate_proof_packet(sample_data, evaluator_tag=args.evaluator)
 
     if args.test:
         print(f"[Wurk] Proof Packet: {json.dumps(packet, indent=2)}")

@@ -2,6 +2,7 @@
 EPIPHANY PROTOCOL - DEPLOYMENT ENGINE (SANDBOX MOCKED)
 """
 import json
+import os
 from dataclasses import dataclass
 from typing import List, Any
 
@@ -17,6 +18,7 @@ class DeploymentConfig:
 def mock_deployment_output(ledger_addr, registry_addr, dar_addr):
     """Saves mocked deployment addresses to settlement.json."""
     settlement_path = "public/settlement.json"
+    os.makedirs(os.path.dirname(settlement_path), exist_ok=True)
     data = {
         "contracts": {
             "ProvenanceLedger": ledger_addr,

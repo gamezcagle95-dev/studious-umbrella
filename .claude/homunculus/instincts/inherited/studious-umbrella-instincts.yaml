@@ -1,0 +1,396 @@
+# Instincts generated from https://github.com/gamezcagle95-dev/studious-umbrella
+# Generated: 2026-07-06T08:25:50.540Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: studious-umbrella-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Commit Length
+
+## Action
+
+Write moderate-length commit messages (~71 characters)
+
+## Evidence
+
+- Average commit message length: 71 chars
+- Based on 16 commits
+
+---
+id: studious-umbrella-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: studious-umbrella-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: studious-umbrella-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: studious-umbrella-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: studious-umbrella-workflow-feature-development
+trigger: "when implementing a new feature"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Workflow Feature Development
+
+## Action
+
+Follow the feature-development workflow:
+1. Add feature implementation
+2. Add tests for feature
+3. Update documentation
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~13x per month
+- Files: **/*.test.*
+
+---
+id: studious-umbrella-workflow-smart-contract-integration-and-linkage
+trigger: "when doing smart contract integration and linkage"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Workflow Smart Contract Integration And Linkage
+
+## Action
+
+Follow the smart-contract-integration-and-linkage workflow:
+1. Modify src/contracts/ProvenanceLedger.sol and/or src/contracts/ProvenanceRegistry.sol to add or remove integration logic.
+2. Update deploy.py to reflect new linkage or remove linkage logic.
+3. Generate new build artifacts in artifacts/contracts/ with timestamped build-info.json and update artifacts/contracts/latest.
+4. Optionally, add or remove scripts/verify_integration.py for ABI verification.
+5. Commit all related files together.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: src/contracts/ProvenanceLedger.sol, src/contracts/ProvenanceRegistry.sol, deploy.py
+
+---
+id: studious-umbrella-workflow-add-or-update-github-actions-workflow
+trigger: "when doing add or update github actions workflow"
+confidence: 0.65
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Workflow Add Or Update Github Actions Workflow
+
+## Action
+
+Follow the add-or-update-github-actions-workflow workflow:
+1. Create or update a YAML workflow file under .github/workflows/ (e.g., codeql.yml, summary.yml, stale.yml).
+2. Commit the workflow file with a descriptive message.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~3x per month
+- Files: .github/workflows/*.yml
+
+---
+id: studious-umbrella-instinct-naming-conventions
+trigger: "When creating or renaming files, functions, classes, or constants in Python code"
+confidence: 0.85
+domain: code-style
+source: repo-analysis
+source_repo: gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Instinct Naming Conventions
+
+## Action
+
+Use camelCase for files and functions, PascalCase for classes, and SCREAMING_SNAKE_CASE for constants
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions
+- Consistent usage in src/contracts and scripts
+
+---
+id: studious-umbrella-instinct-import-style
+trigger: "When importing modules in Python files"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Instinct Import Style
+
+## Action
+
+Use relative imports
+
+## Evidence
+
+- Pattern in codeStyle.importStyle
+- Observed in scripts and deploy.py
+
+---
+id: studious-umbrella-instinct-export-style
+trigger: "When exporting symbols from Python modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in codeStyle.exportStyle
+
+---
+id: studious-umbrella-instinct-test-location
+trigger: "When adding or updating tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Instinct Test Location
+
+## Action
+
+Place test files in a separate test directory, not mixed with source code
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation
+- Files involved in feature-development workflow: **/*.test.*
+
+---
+id: studious-umbrella-instinct-test-workflow
+trigger: "When developing a new feature"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Instinct Test Workflow
+
+## Action
+
+Add or update corresponding test files as part of the feature branch before merging
+
+## Evidence
+
+- feature-development workflow: Add tests for feature
+- Example commits include test file changes
+
+---
+id: studious-umbrella-instinct-commit-prefix
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Instinct Commit Prefix
+
+## Action
+
+Prefix the message with 'feat' for features or 'revert' for reversions
+
+## Evidence
+
+- Commits: 'feat: integrate ProvenanceLedger...', 'revert: undo integration...'
+- Pattern in commits.prefixes
+
+---
+id: studious-umbrella-instinct-commit-length
+trigger: "When composing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Instinct Commit Length
+
+## Action
+
+Aim for concise messages around 70 characters in length
+
+## Evidence
+
+- Pattern in commits.averageLength
+
+---
+id: studious-umbrella-instinct-merge-pr
+trigger: "When merging feature or main branches"
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Instinct Merge Pr
+
+## Action
+
+Use 'Merge pull request' commit messages referencing the branch and PR number
+
+## Evidence
+
+- Commits: 'Merge pull request #53 from ...'
+- Pattern in commits.examples
+
+---
+id: studious-umbrella-instinct-smart-contract-integration
+trigger: "When linking or unlinking ProvenanceLedger and ProvenanceRegistry contracts and updating deployment logic"
+confidence: 0.92
+domain: workflow
+source: repo-analysis
+source_repo: gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Instinct Smart Contract Integration
+
+## Action
+
+Modify both contract files, update deploy.py, generate new build artifacts, optionally update ABI verification scripts, and commit all related files together
+
+## Evidence
+
+- Workflow: smart-contract-integration-and-linkage
+- Example commit sequences and files involved
+
+---
+id: studious-umbrella-instinct-github-actions-workflow
+trigger: "When introducing or modifying a GitHub Actions workflow for CI/CD, code analysis, or automation"
+confidence: 0.88
+domain: workflow
+source: repo-analysis
+source_repo: gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Instinct Github Actions Workflow
+
+## Action
+
+Create or update a YAML workflow file under .github/workflows/ and commit with a descriptive message
+
+## Evidence
+
+- Workflow: add-or-update-github-actions-workflow
+- Example commit sequences and files involved
+
+---
+id: studious-umbrella-instinct-feature-development-workflow
+trigger: "When implementing a new feature"
+confidence: 0.85
+domain: workflow
+source: repo-analysis
+source_repo: gamezcagle95-dev/studious-umbrella
+---
+
+# Studious Umbrella Instinct Feature Development Workflow
+
+## Action
+
+Implement the feature, add tests, update documentation, and merge via a pull request
+
+## Evidence
+
+- Workflow: feature-development
+- Example commit sequences and files involved

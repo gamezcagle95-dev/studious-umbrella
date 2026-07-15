@@ -1,17 +1,26 @@
-venv/
-.venv/
-__pycache__/
-.pytest_cache/
+# Dependencies and execution runtimes
 node_modules/
-artifacts/contracts/
-artifacts/proofs/
+venv/
+__pycache__/
+*.pyc
+
+# Local credentials and infrastructure private keys
+.env
+.env.local
+private_key.json
+
+# Raw training interaction datasets and system weights
+data/datasets/
+data/weights/
+
+# Build Artifacts
+artifacts/
 cache/
-out/
-.openzeppelin/
-.env*
-*.pem
-# Do NOT add .npmrc to .gitignore if it contains security-relevant settings.
-# Either keep a committed .npmrc with ignore-scripts=true, or enforce it via
-# package.json's 'scripts.preinstall' hook:
-# "preinstall": "npx only-allow npm"
-.npmrc
+typechain/
+
+.env
+.env
+.env
+.env
+.env
+.env
