@@ -35,7 +35,11 @@ jobs:
       with:
         python-version: '3.12'
         cache: 'pip'
-
+# Remove the duplicate unpinned steps entirely.
+# Keep only the SHA-pinned versions at the top of the steps list:
+#   actions/setup-python@f677139bbe7f9c59b41e40162b753c062f5d49a3
+#   actions/setup-node@601291242487c7819299021d00d164f63a99c168
+# Delete lines 33-38 (duplicate Set up Python) and lines 58-63 (duplicate Set up Node.js).
     # 3. Install Python Web3 & forensic dependencies
     - name: Install Python Dependencies
       run: |
