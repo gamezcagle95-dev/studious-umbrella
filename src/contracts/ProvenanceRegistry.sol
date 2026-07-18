@@ -54,7 +54,18 @@ constructor(address _ledgerAddress, address _dataAssetRegistry) ERC721("Epiphany
     _grantRole(MINTER_ROLE, _dataAssetRegistry);
 }
 
-// Option B: rely on the DEFAULT_ADMIN_ROLE holder to call
+// Replace the entire constructor block with a single clean constructor
+// that accepts both addresses (Option A), and remove the embedded draft:
+constructor(address _ledgerAddress, address _dataAssetRegistry)
+    ERC721("Epiphany Data Asset", "EDA")
+{
+    if (_ledgerAddress == address(0)) revert InvalidAddress();
+    if (_dataAssetRegistry == address(0)) revert InvalidAddress();
+    ledgerAddress = _ledgerAddress;
+    _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    _grantRole(MINTER_ROLE, _ledgerAddress);
+    _grantRole(MINTER_ROLE, _dataAssetRegistry);
+}
 // grantRole(MINTER_ROLE, dataAssetRegistryAddress) post-deployment via a migration script.
         _grantRole(MINTER_ROLE, _ledgerAddress);
     }
