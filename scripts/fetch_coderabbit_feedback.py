@@ -5,10 +5,12 @@ Fetches, parses, and displays unresolved review-thread feedback from automated r
 (such as octopus-review[bot] and coderabbitai) for active or all open pull requests.
 """
 
+import os
 import sys
 import subprocess
 import urllib.request
 import json
+import re
 from typing import Dict, Any, List
 
 
@@ -28,8 +30,13 @@ def run_git_cmd(args: List[str]) -> str:
 
 
 def fetch_json(url: str) -> Any:
-    """Fetches JSON data from a public URL with User-Agent header."""
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    """Fetches JSON data from a public URL with optional authentication."""
+    headers = {"User-Agent": "Mozilla/5.0"}
+    token = os.getenv("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = f"token {token}"
+
+    req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(req) as response:
             return json.loads(response.read().decode("utf-8"))
@@ -42,20 +49,13 @@ def get_repo_coordinates() -> tuple[str, str]:
     """Extracts owner and repo names from remote origin URL."""
     remote_url = run_git_cmd(["remote", "get-url", "origin"])
     if not remote_url or remote_url == "UNKNOWN":
-        return "gamezcagle95-dev", "studious-umbrella"
+        return "", ""
 
-    # Handle formats like https://github.com/owner/repo or git@github.com:owner/repo
-    clean_url = remote_url.replace(".git", "")
-    if "github.com/" in clean_url:
-        parts = clean_url.split("github.com/")[-1].split("/")
-    elif "github.com:" in clean_url:
-        parts = clean_url.split("github.com:")[-1].split("/")
-    else:
-        parts = []
-
-    if len(parts) >= 2:
-        return parts[0], parts[1]
-    return "gamezcagle95-dev", "studious-umbrella"
+    # Secure regular expression matching both HTTPS and SSH formats of github.com origin URLs
+    match = re.search(r"github\.com[:/]([^/]+)/([^/.]+?)(?:\.git)?$", remote_url)
+    if match:
+        return match.group(1), match.group(2)
+    return "", ""
 
 
 def parse_feedback(comment: Dict[str, Any]) -> Dict[str, str]:
@@ -126,6 +126,10 @@ def main() -> None:
     print("======================================================================")
 
     owner, repo = get_repo_coordinates()
+    if not owner or not repo:
+        print("❌ Could not resolve repository owner or name from git remote origin URL.", file=sys.stderr)
+        sys.exit(1)
+
     active_branch = run_git_cmd(["rev-parse", "--abbrev-ref", "HEAD"])
     print(f"Target Repository: {owner}/{repo}")
     print(f"Active Git Branch: {active_branch}")
