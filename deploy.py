@@ -166,6 +166,9 @@ def run_deployment_loop() -> None:
     install_solc("0.8.26")
     compiled_sol = compile_files()
 
+    # Compile files in a single pass using shared compiler
+    compiled_sol = get_compiled_contracts()
+
     ledger_addr, registry_addr = deploy_base_protocols(w3, compiled_sol,
                                                       account_address, private_key)
 
@@ -201,6 +204,9 @@ def compile_files() -> Dict[str, Any]:
     }, allow_paths=os.path.abspath("node_modules"))
 
 def deploy_contract(w3: Web3, compiled_sol: Dict[str, Any], config: DeploymentConfig) -> str:
+    mock_deployment_output(ledger_address, registry_address)
+
+def deploy_contract(w3, compiled_sol, config: DeploymentConfig):
     """
     Executes a contract deployment transaction.
 

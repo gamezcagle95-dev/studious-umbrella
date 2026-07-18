@@ -1,6 +1,6 @@
-web3==7.16.0
-py-solc-x==2.0.5
-python-dotenv==1.2.2
-pylint==4.0.6
-eth-tester==0.13.0b1
-py-evm==0.12.1b1
+web3
+py-solc-x
+python-dotenv
+pylint
+eth-tester
+py-evm
