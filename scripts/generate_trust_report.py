@@ -145,9 +145,9 @@ def run_pylint_audit(directory_path: str, ignore_patterns: List[str]) -> float:
         return 10.0
 
     try:
-        # Execute pylint on all discovered files
+        # Execute pylint on all discovered files using the current python executable to support venvs
         result = subprocess.run(
-            ["pylint"] + python_files,
+            [sys.executable, "-m", "pylint", "--"] + python_files,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
