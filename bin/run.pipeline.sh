@@ -3,7 +3,7 @@
 # EPIPHANY INVESTIGATIVE PROTOCOL - PIPELINE AUTOMATION RUNNER
 # System Profile: Epiphany Protocol
 # Core Workspace: /app
-# Target Remote: REDACTED_REMOTE
+# Target Remote: git@github.com:epiphany-labs-dev/dataset-tokenization-layer.git
 # ==============================================================================
 set -e
 

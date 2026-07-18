@@ -2,5 +2,3 @@ web3
 py-solc-x
 python-dotenv
 pylint
-eth-tester
-py-evm
