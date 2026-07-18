@@ -129,35 +129,7 @@ contract DataAssetRegistry is AccessControl, EIP712, ReentrancyGuard {
         require(!usedNonces[nonceKey], "Appraisal nonce has already been consumed");
         usedNonces[nonceKey] = true;
 
-// Move the mintDataNFT call AFTER the transferFrom, and restructure:
-
-// 3. Register Asset state (no external calls yet)
-AssetDetails storage asset = registeredAssets[appraisal.assetHash];
-bool isNew = !asset.registered;
-if (isNew) {
-    asset.assetHash = appraisal.assetHash;
-    asset.price     = appraisal.price;
-    asset.ipfsCID   = appraisal.ipfsCID;
-    asset.creator   = appraisal.creator;
-    asset.registered = true;
-} else {
-    require(asset.price == appraisal.price, "Price mismatch");
-}
-
-// 4. Grant access state (no external calls yet)
-accessGrants[msg.sender][appraisal.assetHash] = true;
-
-// 5. Token settlement (external call #1)
-bool success = paymentToken.transferFrom(msg.sender, appraisal.creator, appraisal.price);
-require(success, "EIT token settlement transfer failed");
-
-// 6. Mint NFT only on first purchase (external call #2 — last)
-if (isNew) {
-    provenanceRegistry.mintDataNFT(msg.sender, appraisal.ipfsCID);
-    emit AssetAppraisalRegistered(appraisal.assetHash, appraisal.price, appraisal.ipfsCID, appraisal.creator);
-}
-
-emit AssetUnlocked(appraisal.assetHash, msg.sender, appraisal.price, appraisal.ipfsCID);
+        // 2. Cryptographic Verification (EIP-712)
         // Note: For dynamically sized string (ipfsCID), we hash it on-chain per EIP-712 standard
         bytes32 structHash = keccak256(abi.encode(
             ASSET_APPRAISAL_TYPEHASH,
